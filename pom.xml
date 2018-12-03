@@ -7,8 +7,53 @@
 	<version>1.0-SNAPSHOT</version>
     <packaging>maven-plugin</packaging>
 
- 
-	<properties>
+
+    <name>Reneri</name>
+    <url>https://github.com/STAMP-project/reneri.git</url>
+
+    <organization>
+        <name>STAMP-Project</name>
+        <url>http://github.com/STAMP-project</url>
+    </organization>
+
+    <licenses>
+        <license>
+            <name>GNU Lesser General Public License v3.0</name>
+            <url>https://github.com/STAMP-project/reneri/blob/master/LICENSE</url>
+        </license>
+    </licenses>
+
+    <issueManagement>
+        <system>GitHub</system>
+        <url>https://github.com/STAMP-project/reneri/issues</url>
+    </issueManagement>
+
+    <developers>
+        <developer>
+            <name>Oscar Luis Vera Pérez</name>
+            <email>oscar.vera-perez@inria.fr</email>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git://github.com:STAMP-project/reneri.git</connection>
+        <developerConnection>scm:git:git@github.com:STAMP-project/reneri.git</developerConnection>
+        <url>https://github.com/STAMP-project/reneri</url>
+        <tag>HEAD</tag>
+    </scm>
+
+    <distributionManagement>
+        <snapshotRepository>
+            <id>ossrh-snapshots</id>
+            <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+        </snapshotRepository>
+        <repository>
+            <id>ossrh</id>
+            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+        </repository>
+    </distributionManagement>
+
+    <properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<java.version>1.8</java.version>
 	</properties>
@@ -65,12 +110,6 @@
             <version>3.5.0</version>
         </dependency>
 
-		<dependency>
-			<groupId>org.apache.maven</groupId>
-			<artifactId>maven-artifact</artifactId>
-			<version>3.5.0</version>
-		</dependency>
-
         <!-- Annotations -->
         <dependency>
             <groupId>org.apache.maven.plugin-tools</groupId>
@@ -79,36 +118,26 @@
             <scope>provided</scope>
         </dependency>
 
-		<dependency>
-			<groupId>org.apache.maven</groupId>
-			<artifactId>maven-model</artifactId>
-			<version>3.5.0</version>
-		</dependency>
-
+		<!-- Access to the project structure -->
 		<dependency>
 			<groupId>org.apache.maven</groupId>
 			<artifactId>maven-core</artifactId>
 			<version>3.5.2</version>
 		</dependency>
 
+        <!-- Serialization -->
 		<dependency>
 			<groupId>com.google.code.gson</groupId>
 			<artifactId>gson</artifactId>
 			<version>2.8.0</version>
 		</dependency>
 
+        <!-- Extreme transformations -->
 		<dependency>
 			<groupId>eu.stamp-project</groupId>
 			<artifactId>descartes</artifactId>
 			<version>1.2.4</version>
 		</dependency>
-
-        <!--&lt;!&ndash; Maven project instrospection &ndash;&gt;-->
-        <!--<dependency>-->
-            <!--<groupId>org.apache.maven</groupId>-->
-            <!--<artifactId>maven-project</artifactId>-->
-            <!--<version>2.2.1</version>-->
-        <!--</dependency>-->
 
 		<dependency>
 			<groupId>junit</groupId>
