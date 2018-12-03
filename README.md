@@ -1,7 +1,7 @@
 ## What is Reneri?
 
 Reneri is a Maven plugin that checks if the undetected extreme
-transformations produced by [Descartes](STAMP-Project/pitest-descartes)
+transformations produced by [Descartes](https://github.com/STAMP-project/pitest-descartes)
 could be observed from the existing test code.
 
 ## Quick start
