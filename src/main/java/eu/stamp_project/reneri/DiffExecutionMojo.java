@@ -29,7 +29,6 @@ import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 @Mojo(name = "diff", requiresDependencyResolution = ResolutionScope.TEST)
 @Execute(phase = LifecyclePhase.COMPILE)
@@ -38,20 +37,46 @@ public class DiffExecutionMojo extends AbstractMojo {
     @Parameter(defaultValue = "${project}")
     private MavenProject project;
 
-    @Parameter(property = "testCommandLineComplement")
-    private String testCommandLineComplement;
+    public MavenProject getProject() {
+        return project;
+    }
 
-    @Parameter(property = "targetTestClasses", defaultValue = "target-tests.txt")
-    private File targetClasses;
+    public void setProject(MavenProject project) {
+        this.project = project;
+    }
 
     @Parameter(property = "ouputFolder", defaultValue = "${project.build.directory}/reneri")
     private File outputFolder;
 
+    public File getOutputFolder() {
+        return outputFolder;
+    }
+
+    public void setOutputFolder(File outputFolder) {
+        this.outputFolder = outputFolder;
+    }
+
     @Parameter(property = "transformations", defaultValue = "${project.build.directory/mutations.json}")
     private File transformations;
 
+    public File getTransformations() {
+        return transformations;
+    }
+
+    public void setTransformations(File transformations) {
+        this.transformations = transformations;
+    }
+
     @Parameter(property = "testTimes", defaultValue = "10")
     private int testTimes; //Number of times the tests should be executed
+
+    public int getTestTimes() {
+        return testTimes;
+    }
+
+    public void setTestTimes(int testTimes) {
+        this.testTimes = testTimes;
+    }
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
@@ -349,51 +374,10 @@ public class DiffExecutionMojo extends AbstractMojo {
     }
 
 
-    public MavenProject getProject() {
-        return project;
-    }
 
-    public void setProject(MavenProject project) {
-        this.project = project;
-    }
 
-    public String getTestCommandLineComplement() {
-        return testCommandLineComplement;
-    }
 
-    public void setTestCommandLineComplement(String testCommandLineComplement) {
-        this.testCommandLineComplement = testCommandLineComplement;
-    }
 
-    public File getTargetClasses() {
-        return targetClasses;
-    }
 
-    public void setTargetClasses(File targetClasses) {
-        this.targetClasses = targetClasses;
-    }
 
-    public File getOutputFolder() {
-        return outputFolder;
-    }
-
-    public void setOutputFolder(File outputFolder) {
-        this.outputFolder = outputFolder;
-    }
-
-    public File getTransformations() {
-        return transformations;
-    }
-
-    public void setTransformations(File transformations) {
-        this.transformations = transformations;
-    }
-
-    public int getTestTimes() {
-        return testTimes;
-    }
-
-    public void setTestTimes(int testTimes) {
-        this.testTimes = testTimes;
-    }
 }
