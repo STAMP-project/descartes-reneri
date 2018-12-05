@@ -11,7 +11,6 @@ import spoon.template.Local;
 import spoon.template.Substitution;
 
 import java.io.*;
-import java.nio.file.Paths;
 import java.text.NumberFormat;
 import java.util.Locale;
 
@@ -84,10 +83,6 @@ public class ObserverTemplate extends AbstractTemplate<CtClass<?>> {
 
             if(folder == null)  {
                 folder = ".";
-            }
-
-            if(folder.startsWith("\"") && folder.endsWith("\"")) {
-                folder = folder.substring(1, folder.length() - 1);
             }
 
             final String fullPath = String.format("%s/%s-%s.jsonl", folder, typeToObserve, System.currentTimeMillis());
