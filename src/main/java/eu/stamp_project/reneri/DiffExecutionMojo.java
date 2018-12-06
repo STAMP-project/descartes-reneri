@@ -78,6 +78,32 @@ public class DiffExecutionMojo extends AbstractMojo {
         this.testTimes = testTimes;
     }
 
+    @Parameter(property = "executeAllTests", defaultValue = "false")
+    private boolean executeAllTests;
+
+    public boolean getExecuteAllTests() {
+        return executeAllTests;
+    }
+
+    public void setExecuteAllTests(boolean executeAllTests) {
+        this.executeAllTests = executeAllTests;
+    }
+
+    @Parameter(property = "stackTraces", defaultValue = "${project.build.directory}/stack-traces.json")
+    private File stackTraces;
+
+    public File getStackTraces() {
+        return stackTraces;
+    }
+
+    public void setStackTraces(File stackTraces) {
+        this.stackTraces = stackTraces;
+    }
+
+    private MethodTracesEntry[] methodTraces;
+
+    private Set<CtClass<?>> testClasses;
+
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         try {
@@ -86,10 +112,17 @@ public class DiffExecutionMojo extends AbstractMojo {
             createEmptyDirectory(outputFolder.toPath());
 
             getLog().info("Instrumenting test classes");
-            instrumentTestClasses();
+            testClasses = instrumentTestClasses();
+            if(testClasses.isEmpty()) {
+                getLog().warn("Stopping analysis as no test class was found");
+                return;
+            }
 
             getLog().info("Compiling instrumented test classes");
             compileInstrumentedTests();
+
+            getLog().info("Loading stack traces");
+            methodTraces = loadMethodTraces();
 
             getLog().info("Executing test classes to observe original values");
             executeTests(getFolderPath("original"));
@@ -102,35 +135,38 @@ public class DiffExecutionMojo extends AbstractMojo {
         }
     }
 
-    public Path getGeneratedTestsPath() {
+    private Path getGeneratedTestsPath() {
         Path testOutputPath = Paths.get(project.getBuild().getTestOutputDirectory());
         return testOutputPath.getParent().resolve("generated-test-sources");
     }
 
-    protected void instrumentTestClasses() throws MojoExecutionException {
+    private Set<CtClass<?>> instrumentTestClasses() throws MojoExecutionException {
 
         Path testSourceOutputPath = getGeneratedTestsPath();
-        createEmptyDirectory(testSourceOutputPath);
         // It seems that Spoon messes with the generated-test-sources folder
+        createEmptyDirectory(testSourceOutputPath);
 
         MavenLauncher launcher = new MavenLauncher(project.getBasedir().getAbsolutePath(), MavenLauncher.SOURCE_TYPE.ALL_SOURCE);
+
         launcher.addTemplateResource(new ResourceJavaFile("templates/ObserverTemplate.java"));
         CtModel model = launcher.buildModel();
-        Set<CtClass<?>> testClasses = TestClassFinder.findTestClasses(model); // TODO: Fix the types
+        Set<CtClass<?>> testClassesFound = TestClassFinder.findTestClasses(model);
 
-        getLog().info("Test classes found: " + testClasses.size());
+        getLog().info("Test classes found: " + testClassesFound.size());
 
         if(getLog().isDebugEnabled()) {
-            for(CtClass type : testClasses) {
+            for(CtClass type : testClassesFound) {
                 getLog().debug(type.getQualifiedName());
             }
         }
 
-        launcher.addProcessor( new ObserverClassProcessor(testClasses));
+        launcher.addProcessor( new ObserverClassProcessor(testClassesFound));
         launcher.process();
         launcher.setSourceOutputDirectory(testSourceOutputPath.toString());
-        launcher.setOutputFilter(testClasses::contains);
+        launcher.setOutputFilter(testClassesFound::contains);
         launcher.prettyprint();
+
+        return testClassesFound;
     }
 
     private void createEmptyDirectory(Path root) throws MojoExecutionException {
@@ -163,7 +199,7 @@ public class DiffExecutionMojo extends AbstractMojo {
         }
     }
 
-    protected List<String> getTestClasspathElements() {
+    private List<String> getTestClasspathElements() {
         try {
             return project.getTestClasspathElements();
         }
@@ -173,7 +209,7 @@ public class DiffExecutionMojo extends AbstractMojo {
         }
     }
 
-    public void compileInstrumentedTests() throws MojoExecutionException {
+    private void compileInstrumentedTests() throws MojoExecutionException {
 
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
 
@@ -198,14 +234,14 @@ public class DiffExecutionMojo extends AbstractMojo {
         if(!task.call()) {
             getLog().error("Error while compiling instrumented test classes");
             for(Diagnostic fact : diagnostics.getDiagnostics()) {
-                getLog().error(fact.getMessage(Locale.ROOT));
+                getLog().error(String.format("%s in [%s,%s] %s ", fact.getMessage(Locale.ROOT), fact.getSource(), fact.getLineNumber(), fact.getColumnNumber()));
             }
 
             throw new MojoExecutionException("Errors found while compiling the instrumented test classes");
         }
     }
 
-    protected  List<MutationIdentifier> loadUndetectedMutations() throws IOException {
+    private  List<MutationIdentifier> loadUndetectedMutations() throws IOException {
         Gson gson = new Gson();
         FileReader fileReader = new FileReader(transformations);
         JsonObject document = gson.fromJson(fileReader, JsonObject.class);
@@ -228,39 +264,62 @@ public class DiffExecutionMojo extends AbstractMojo {
         return result;
     }
 
+    private MethodTracesEntry[] loadMethodTraces() throws MojoExecutionException {
+        if(executeAllTests) {
+            getLog().debug("All tests are going to be executed against each transformation");
+            return  new MethodTracesEntry[0];
+        }
+
+        Gson gson = new Gson();
+        try(FileReader reader = new FileReader(stackTraces)) {
+            return gson.fromJson(reader, MethodTracesEntry[].class);
+
+        }
+        catch (Exception exc) {
+            throw new MojoExecutionException("An error occurred while loading the stack traces file.", exc);
+        }
+    }
+
     private Path getClassFilePath(MutationIdentifier mutation) {
        return  Paths.get(project.getBuild().getOutputDirectory(),  mutation.getClassName().asInternalName() + ".class");
     }
 
-    protected  void executeTestCommand(Path resultFolder) throws MojoExecutionException {
-        Process testProcess = null;
-        try {
-
-            ProcessBuilder builder = new ProcessBuilder("mvn", "surefire:test", String.format("-Dstamp.reneri.folder=\"%s\"", resultFolder.toAbsolutePath().toString()));
-            builder.directory(project.getBasedir());
-            testProcess = builder.start();
-            testProcess.waitFor();
-            if (testProcess.exitValue() != 0) {
-                getLog().warn("Test process exited with code " + testProcess.exitValue());
-            }
-
-        }
-        catch (IOException exc) {
-            throw new MojoExecutionException("Failed to execute the test process", exc);
-        }
-        catch (InterruptedException exc) {
-            throw new MojoExecutionException("Test process was interrupted", exc);
-        }
-        finally {
-            if(testProcess != null && testProcess.isAlive())
-                testProcess.destroyForcibly();
-        }
+    private void executeTests(Path resultFolder) throws MojoExecutionException {
+        executeTests(resultFolder, Collections.emptySet());
     }
 
+    private void executeTests(Path resultFolder, Set<String> classes)  throws MojoExecutionException {
 
-    protected void executeTests(Path folder)  throws MojoExecutionException {
-        for(int i = 0; i < testTimes; i++) {
-            executeTestCommand(folder);
+
+        List<String> command = new ArrayList<>(Arrays.asList("mvn", "surefire:test", String.format("\"-Dstamp.reneri.folder=%s\"", resultFolder.toAbsolutePath().toString())));
+
+        if(!classes.isEmpty()) {
+            command.add(String.format("\"-Dtest=%s", classes.stream().collect(Collectors.joining(", "))));
+        }
+
+        ProcessBuilder builder = new ProcessBuilder(command);
+        builder.directory(project.getBasedir());
+        for (int i = 0; i < testTimes; i++) {
+            Process testProcess = null;
+            try {
+                testProcess = builder.start();
+                testProcess.waitFor();
+                int exitValue = testProcess.exitValue();
+                if (exitValue != 0) {
+                    getLog().warn("Test process exited with code " + exitValue);
+                }
+            }
+            catch (IOException exc) {
+                throw new MojoExecutionException("Failed to execute the test process", exc);
+            }
+            catch (InterruptedException exc) {
+                throw new MojoExecutionException("Test process was interrupted", exc);
+            }
+            finally {
+                if (testProcess != null && testProcess.isAlive()) {
+                    testProcess.destroyForcibly();
+                }
+            }
         }
     }
 
@@ -284,7 +343,20 @@ public class DiffExecutionMojo extends AbstractMojo {
         return classWriter.toByteArray();
     }
 
-    private void saveMutationInfo(Path folder, MutationIdentifier mutation) throws IOException {
+    private Set<String> getClosestTestClasses(MutationIdentifier mutation) {
+        if(executeAllTests) {
+            return Collections.emptySet();
+        }
+
+        HashSet<String> result = new HashSet<>();
+
+        for(MethodTracesEntry entry : methodTraces) {
+            result.addAll(entry.getClosestClassesTo(mutation, testClasses));
+        }
+        return result;
+    }
+
+    private void saveMutationInfo(Path folder, MutationIdentifier mutation, Set<String> tests) throws IOException {
         Location location = mutation.getLocation();
         JsonObject obj = new JsonObject();
         obj.addProperty("mutator", mutation.getMutator());
@@ -292,6 +364,13 @@ public class DiffExecutionMojo extends AbstractMojo {
         obj.addProperty("package", location.getClassName().getPackage().toString());
         obj.addProperty("method", location.getMethodName().toString());
         obj.addProperty("description", location.getMethodDesc());
+
+        if(!tests.isEmpty()) {
+            JsonArray testArray = new JsonArray();
+            tests.forEach(testArray::add);
+            obj.add("tests", testArray);
+        }
+
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
         try(FileWriter writer = new FileWriter(folder.resolve("mutation.json").toFile())) {
@@ -299,17 +378,23 @@ public class DiffExecutionMojo extends AbstractMojo {
         }
     }
 
-    protected void executeMutation(Path resultFolderPath, MutationIdentifier mutation) throws IOException, MojoExecutionException {
+    private void executeMutation(Path resultFolderPath, MutationIdentifier mutation) throws IOException, MojoExecutionException {
+            // Mutate the source code
             Path pathToClass = getClassFilePath(mutation);
             byte[] originalClass = Files.readAllBytes(pathToClass);
             write(pathToClass, mutate(originalClass, mutation));
-            saveMutationInfo(resultFolderPath, mutation);
-            executeTests(resultFolderPath);
+            //Select the tests to execute
+            Set<String> tests = getClosestTestClasses(mutation);
+            //Save the information
+            saveMutationInfo(resultFolderPath, mutation, tests);
+            // Execute the tests
+            executeTests(resultFolderPath, tests);
+            //Restore the original code
             write(pathToClass, originalClass);
     }
 
 
-    protected void doMutationAnalysis() throws MojoExecutionException {
+    private void doMutationAnalysis() throws MojoExecutionException {
         try {
             List<MutationIdentifier> mutations = loadUndetectedMutations();
 
@@ -319,6 +404,8 @@ public class DiffExecutionMojo extends AbstractMojo {
 
                 getLog().debug("Executing mutation " + index);
                 try {
+
+
                     executeMutation(getFolderPath(Integer.toString(index)), mutations.get(index));
                 }
                 catch (Exception exc) {
@@ -338,7 +425,7 @@ public class DiffExecutionMojo extends AbstractMojo {
         try {
             Files.walkFileTree(rootFolder, new FileVisitor<Path>() {
                 @Override
-                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
 
                     if(dir.endsWith("eu/stamp_project/reneri")) {
                         return FileVisitResult.SKIP_SUBTREE;
@@ -347,7 +434,7 @@ public class DiffExecutionMojo extends AbstractMojo {
                 }
 
                 @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                     if (file.toString().endsWith(".java")) {
                         files.add(file.toAbsolutePath().toString());
                     }
@@ -355,12 +442,12 @@ public class DiffExecutionMojo extends AbstractMojo {
                 }
 
                 @Override
-                public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+                public FileVisitResult visitFileFailed(Path file, IOException exc) {
                     return FileVisitResult.CONTINUE;
                 }
 
                 @Override
-                public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                public FileVisitResult postVisitDirectory(Path dir, IOException exc) {
                     return FileVisitResult.CONTINUE;
                 }
             });
@@ -372,11 +459,6 @@ public class DiffExecutionMojo extends AbstractMojo {
         return files;
 
     }
-
-
-
-
-
 
 
 
