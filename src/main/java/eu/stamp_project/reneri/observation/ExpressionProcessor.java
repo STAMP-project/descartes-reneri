@@ -65,10 +65,9 @@ public class ExpressionProcessor extends AbstractProcessor<CtExpression<?>> {
 
         CtTypeReference type = element.getType();
 
-        // TODO: Turns out that Spoon is not getting generic types very well.
-        // The type I'm getting is SomeType<Object> while it should be SomeType<String>
-
-        if(type.getActualTypeArguments().size() >= 1) return;
+        if(isDubiousGenericitResolution(type)) {
+            return;
+        }
 
         Factory factory = getFactory();
 
@@ -78,6 +77,19 @@ public class ExpressionProcessor extends AbstractProcessor<CtExpression<?>> {
                 factory.createLiteral(Integer.toString(expressionCounter++)),
                 element.clone());
         element.replace(replacement);
+
+    }
+
+    private boolean isDubiousGenericitResolution(CtTypeReference reference) {
+
+        // TODO: Turns out that Spoon is not getting generic types very well.
+        // The type I'm getting is SomeType<Object> while it should be SomeType<String>
+        // therefore, if we get an expression where the type argument is object
+        // it could be a bad inference so we skip them.
+        // This leaves out a number of expressions but at least ensures that the instrumented code will compile.
+
+        List<CtTypeReference<?>> arguments = reference.getActualTypeArguments();
+        return arguments.stream().anyMatch(arg -> arg.getQualifiedName().equals("java.lang.Object"));
 
     }
 
