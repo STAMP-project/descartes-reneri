@@ -2,82 +2,59 @@ package eu.stamp_project.reneri.observation;
 
 import spoon.processing.AbstractProcessor;
 import spoon.reflect.code.*;
-import spoon.reflect.declaration.*;
-import spoon.reflect.factory.Factory;
+import spoon.reflect.declaration.CtAnnotation;
+import spoon.reflect.declaration.CtMethod;
 import spoon.reflect.factory.TypeFactory;
-import spoon.reflect.reference.*;
-import spoon.support.SpoonClassNotFoundException;
-import spoon.template.Substitution;
-import spoon.template.Template;
+import spoon.reflect.reference.CtTypeReference;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 
-public class ExpressionProcessor extends AbstractProcessor<CtExpression<?>> {
 
+public abstract class ExpressionProcessor extends AbstractProcessor<CtExpression<?>> {
 
-    private Template<?> template = new ObserverTemplate();
-    private CtType<?> templateClass;
+    //private CtMethod<?> targetMethod;
 
-    private CtType<?> observerClass;
-    private CtMethod<?> targetMethod;
     private int expressionCounter = 0;
 
     private Set<CtTypeReference<?>> typesToAvoid;
 
-    //private Set<CtTypeReference<?>> observedTypes = new HashSet<>();
+    private String baseObservationPoint;
 
-    public ExpressionProcessor(CtType<?> observerClass, CtMethod<?> method) {
-        this.observerClass = observerClass;
-        this.targetMethod = method;
+    public ExpressionProcessor(CtMethod<?> method) {
+        setBaseObservationPoint(method);
+        setFactory(method.getFactory());
+        setTypesToAvoid();
+    }
 
-        setFactory(observerClass.getFactory());
+    private void setBaseObservationPoint(CtMethod<?> method) {
+        baseObservationPoint = String.format("%s|%s", method.getDeclaringType().getQualifiedName(), method.getSignature());
+    }
 
-        // Fill types to avoid
-        TypeFactory factory = new TypeFactory(getFactory());
+    private void setTypesToAvoid() {
+        TypeFactory factory = getFactory().Type();
+
         typesToAvoid = new HashSet<>();
         typesToAvoid.add(factory.VOID);
         typesToAvoid.add(factory.VOID_PRIMITIVE);
         typesToAvoid.add(factory.NULL_TYPE);
-
-        templateClass = getFactory().Class().get(template.getClass());
     }
 
     @Override
     public boolean isToBeProcessed(CtExpression<?> element) {
-        //Exclude simple expressions
-        if(Stream.of(CtLiteral.class, CtSuperAccess.class, CtThisAccess.class, CtTypeAccess.class, CtAnnotation.class)
-                .anyMatch(type -> type.isInstance(element)))
-            return false;
-
-        CtTypeReference type = element.getType(); //TODO: Anonymous types
-        return type != null && !typesToAvoid.contains(type);
+        return canProcessASTNode(element) && canProcessType(getActualType(element));
     }
 
-    @Override
-    public void process(CtExpression<?> element) {
-
-        CtTypeReference type = element.getType();
-
-        if(isDubiousGenericitResolution(type)) {
-            return;
-        }
-
-        Factory factory = getFactory();
-
-        CtExpression<?> replacement = getFactory().createInvocation(
-                factory.createTypeAccess(observerClass.getReference()),
-                getMethodFor(type).getReference(),
-                factory.createLiteral(Integer.toString(expressionCounter++)),
-                element.clone());
-        element.replace(replacement);
-
+    private boolean canProcessType(CtTypeReference type) {
+        return type != null &&
+                !type.getQualifiedName().equals("?") && // Yep, unresolved type references are named as ? and I haven't found a better way to query this
+                !isDubiousGenericitResolution(type) &&
+                !type.isGenerics() &&
+                !type.isAnonymous() &&
+                !typesToAvoid.contains(type);
     }
 
     private boolean isDubiousGenericitResolution(CtTypeReference reference) {
@@ -87,188 +64,52 @@ public class ExpressionProcessor extends AbstractProcessor<CtExpression<?>> {
         // therefore, if we get an expression where the type argument is object
         // it could be a bad inference so we skip them.
         // This leaves out a number of expressions but at least ensures that the instrumented code will compile.
-
         List<CtTypeReference<?>> arguments = reference.getActualTypeArguments();
-        return arguments.stream().anyMatch(arg -> arg.getQualifiedName().equals("java.lang.Object"));
+        CtTypeReference<?> OBJECT = getFactory().Type().OBJECT;
+        return arguments.stream().anyMatch(arg -> arg.equals(OBJECT));
 
+    }
+
+    private boolean canProcessASTNode(CtExpression<?> node) {
+        if(node.getParent() instanceof CtAssignment) {
+            // An assignment is an expression
+            // and so it is the left side
+            // processing the left part leads to compile errors.
+            // We process the assignment as a whole.
+            return false;
+        }
+        return !Stream.of(
+                CtLiteral.class,
+                CtSuperAccess.class,
+                CtThisAccess.class,
+                CtTypeAccess.class,
+                CtAnnotation.class
+        ).anyMatch(type -> type.isInstance(node));
+    }
+
+    private String getPointID() {
+        return String.format("%s|%d", baseObservationPoint, expressionCounter++);
     }
 
     @Override
-    public void processingDone() {
-        addTopEnter();
-        //purgeNotObserved(); //Can't purge as each targetMethod is processed in different times. Should copy only when used.
+    public void process(CtExpression<?> element) {
+        processExpression(getPointID(), element);
     }
 
-    protected void addTopEnter() {
-        Factory factory = getFactory();
-        CtTypeAccess observer = factory.createTypeAccess(observerClass.getReference());
-        CtExecutableReference topenter = observerClass.getMethod("topenter", factory.Type().STRING).getReference();
-        targetMethod.getBody().addStatement(0, factory.createInvocation(observer, topenter, factory.createLiteral(targetMethod.getSimpleName())));
-    }
+    protected abstract void processExpression(String point, CtExpression<?> expression);
 
-//    protected void purgeNotObserved() {
-//        Set<String> methodsOfInterest = observedTypes.stream().map(this::getMethodNameFor).collect(Collectors.toSet());
-//        observerClass.getMethods().stream()
-//                .filter(method -> method.getSimpleName().startsWith("observe_") && !methodsOfInterest.contains(method.getSimpleName()))
-//                .forEach(CtMethod::delete);
-//    }
 
-    protected CtMethod<?> getUniqueMethodFrom(CtType<?> type, String name) {
-        List<CtMethod<?>> candidates = type.getMethodsByName(name);
-        if(candidates.size() > 1) {
-            throw new AssertionError(String.format("Method %s is expected to be unique in type %s", name, type.getQualifiedName()));
-        }
-        if(candidates.size() == 1) {
-            return candidates.get(0);
-        }
-        return null;
-    }
+    protected CtTypeReference<?> getActualType(CtExpression<?> expression) {
 
-    protected CtMethod<?> getMethodFor(CtTypeReference<?> valueType) {
+        //ARRGHH SPOON!!!
+        List<CtTypeReference<?>> casts = expression.getTypeCasts();
 
-        //observedTypes.add(valueType);
-
-        final String methodName = getMethodNameFor(valueType);
-        CtMethod<?> method = getUniqueMethodFrom(observerClass, methodName);
-        if(method != null) {
-            // The method has been already added to the observer class
-            return method;
+        if(casts.isEmpty()) {
+            return expression.getType();
         }
 
-        method = getUniqueMethodFrom(templateClass, methodName);
-        if(method != null) {
-            // The method is being added from the template class
-            return Substitution.insertMethod(observerClass, template, method);
-        }
-
-
-        // Create a new method for the given type
-        return createMethodFor(valueType);
+        return casts.get(0);
     }
 
-    protected CtMethod<?> createMethodFor(CtTypeReference<?> valueType) {
-
-        Factory factory = getFactory();
-        CtMethod method = factory.createMethod();
-        method.addModifier(ModifierKind.PUBLIC).addModifier(ModifierKind.STATIC);
-        method.setSimpleName(getMethodNameFor(valueType));
-        method.setType(valueType);
-
-        CtTypeReference<?> STRING = factory.Type().STRING;
-        CtTypeReference<?> OBJECT = factory.Type().OBJECT;
-
-        CtParameterReference<?> pointParam = factory.createParameter(method, STRING, "point").getReference();
-        CtVariableRead<?> point = (CtVariableRead<?>)factory.createVariableRead(pointParam, false); //o_O
-        CtParameterReference<?> valueParam = factory.createParameter(method, valueType, "value").getReference();
-        CtVariableRead<?> value = (CtVariableRead<?>)factory.createVariableRead(valueParam, false); // o_O
-        CtTypeAccess<?> observer = factory.createTypeAccess(observerClass.getReference());
-        CtExecutableReference<?> observeNull = observerClass.getMethod("observeNull", STRING, OBJECT).getReference();
-
-        CtBlock<?> body = factory.createBlock();
-        // observeNull(<point>, value)
-        body.addStatement(factory.createInvocation(observer, observeNull, point, value));
-
-        final AtomicInteger pointCounter = new AtomicInteger();
-        CtIf ifNotNull = factory.createIf()
-                //if(value != null)
-                .setCondition(factory.createBinaryOperator(value, factory.createLiteral(null), BinaryOperatorKind.NE))
-                .setThenStatement(factory.createBlock().setStatements(
-                        getObservationPoints(value).map(watch -> {
-                            CtTypeReference<?> watchType = watch.getType();
-                            CtExecutableReference<?> observe = isOriginalType(watchType)?getMethodFor(watchType).getReference():observeNull;
-                            // observe_<type>(<pointCounter>, <watch>)
-                            // or
-                            // observeNull(<pointCounter>, <watch>)
-                            return factory.createInvocation(observer, observe, factory.createLiteral(Integer.toString(pointCounter.getAndIncrement())), watch);
-                        }).collect(Collectors.toList()))
-                        //enter(<point>) //At the begining of the then instruction
-                        .addStatement(0, factory.createInvocation(observer, observerClass.getMethod("enter", STRING).getReference(), point))
-                        //exit()
-                        .addStatement(factory.createInvocation(observer, observerClass.getMethod("exit").getReference())));
-
-        if(pointCounter.get() > 0) {
-            //If there are actual observation points
-            body.addStatement(ifNotNull);
-        }
-
-        // return value
-        body.addStatement(((CtReturn)factory.createReturn()).setReturnedExpression(value));
-        method.setBody(body);
-        observerClass.addMethod(method);
-        return method;
-    }
-
-    protected boolean isOriginalType(CtTypeReference<?> valueType) {
-        return valueType.getQualifiedName().equals("java.lang.String") || valueType.isPrimitive() || valueType.unbox().isPrimitive();
-    }
-
-    protected String getMethodNameFor(CtTypeReference<?> type) {
-        return "observe_" + type.getQualifiedName()
-                .replace('.', '_')
-                .replace("[]", "__array__");
-    }
-
-    private boolean isArray(CtTypeReference<?> type) {
-        return type.getSimpleName().contains("[]"); // Hacky way to know whether the type is an array
-    }
-
-    protected Stream<CtExpression<?>> getObservationPoints(CtVariableRead<?> value) {
-        Factory factory = getFactory();
-        return Stream.concat(
-                getObservableFields(value.getType()).map(
-                        (CtFieldReference<?> field) -> {
-                            CtFieldRead<?> fieldRead = factory.createFieldRead();
-                            fieldRead.setTarget(value);
-                            fieldRead.setVariable((CtFieldReference)field);
-                            return fieldRead;
-                        }),
-                getObservableGetters(value.getType()).map(getter ->
-                        factory.createInvocation(value, getter.getReference())
-                )
-        );
-    }
-
-    protected Stream<CtFieldReference<?>> getObservableFields(CtTypeReference<?> valueType) {
-        Predicate<CtFieldReference<?>> condition = field -> field.getModifiers().contains(ModifierKind.PUBLIC);
-
-        if(inSamePackage(valueType))
-            condition = field -> {
-                Set<ModifierKind> modifiers = field.getModifiers();
-                return modifiers.contains(ModifierKind.PUBLIC) || modifiers.contains(ModifierKind.PROTECTED);
-            };
-        return valueType.getDeclaredFields().stream().filter(condition);
-    }
-
-    //TODO: Observing these methods may cause a test failure, deal with it
-    protected Stream<CtMethod<?>> getObservableGetters(CtTypeReference<?> valueType) {
-        try {
-            CtType<?> actualType = valueType.getTypeDeclaration();
-            if (actualType == null) //Can't observe the methods
-                return Stream.empty();
-            Predicate<CtMethod<?>> condition = method -> isGetter(method)  && method.hasModifier(ModifierKind.PUBLIC);
-            if (inSamePackage(valueType))
-                condition = method -> isGetter(method) &&
-                        (method.hasModifier(ModifierKind.PUBLIC) || method.hasModifier(ModifierKind.PROTECTED));
-            return valueType.getTypeDeclaration().getMethods().stream().filter(condition);
-        } catch(SpoonClassNotFoundException  exc) {
-            //Sometimes this happens even when the class has been loaded
-            return Stream.empty();
-        }
-    }
-
-    protected boolean inSamePackage(CtTypeReference<?> valueType) {
-        CtPackageReference valuePackage = valueType.getPackage();
-        if(valuePackage == null)
-            return false;
-        CtPackage observerPackage = observerClass.getPackage();
-        if(observerPackage == null)
-            return false;
-        return valuePackage.getQualifiedName().equals(observerPackage.getQualifiedName());
-    }
-
-    protected boolean isGetter(CtMethod<?> method) {
-        // Getters by convention
-        return method.getParameters().size() == 0 && (method.getSimpleName().startsWith("get") || method.getSimpleName().startsWith("is"));
-    }
 
 }

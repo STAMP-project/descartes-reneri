@@ -1,6 +1,5 @@
 package eu.stamp_project.reneri.observation;
 
-import org.apache.commons.lang3.builder.ToStringExclude;
 import spoon.SpoonException;
 import spoon.processing.AbstractProcessor;
 import spoon.processing.Property;
@@ -22,21 +21,9 @@ import static eu.stamp_project.reneri.TestClassFinder.getAnnotation;
 
 public class ObserverClassProcessor extends AbstractProcessor<CtClass<?>> {
 
-    @Property
-    String reportPath = "";
+    private final static String OWN_PACKAGE = ObservationAttacherProcessor.class.getPackage().getName();
 
-    @Property
-    long timeoutFactor = 2;
-
-    @Property
-    Set<CtClass<?>> typesToTransform;
-
-    private ObserverTemplate template = new ObserverTemplate();
-
-    private Set<String> processedMethods = new HashSet<>();
-
-
-    Predicate<CtClass<?>> isCandidate = (type) -> true;
+    private Set<CtClass<?>> typesToTransform;
 
     public ObserverClassProcessor() {
         this.typesToTransform = null; // Means all types shall be transformed
@@ -46,11 +33,15 @@ public class ObserverClassProcessor extends AbstractProcessor<CtClass<?>> {
         this.typesToTransform = typesToTransform;
     }
 
-
     @Override
     public boolean isToBeProcessed(CtClass<?> element) {
 
         System.out.println("Checking " + element.getQualifiedName());
+
+        if(element.getQualifiedName().startsWith(OWN_PACKAGE)) {
+            // Preventing self analysis
+            return false;
+        }
 
         try {
             return (typesToTransform == null) || typesToTransform.contains(element);
@@ -61,55 +52,31 @@ public class ObserverClassProcessor extends AbstractProcessor<CtClass<?>> {
         }
     }
 
-    public void setReportPath(String reportPath) {
-        this.reportPath = reportPath;
-    }
-
     @Override
     public void process(CtClass<?> element) {
         System.out.println("Processing " + element.getQualifiedName());
-        CtClass<?> observerClass = getObserverClass(element);
         for (CtMethod<?> method : element.getMethods()) {
-            increaseTimeoutIfNeeded(method);
-            insertObservationPoints(observerClass, method);
+            turnOffTimeout(method);
+            insertObservationPoints(method);
         }
     }
 
-    protected void increaseTimeoutIfNeeded(CtMethod<?> method) {
+    private void turnOffTimeout(CtMethod<?> method) {
+        // We observe only functional differences so we turn off timeout
         Optional<CtAnnotation<?>> annotation = getAnnotation(method, "org.junit.Test");
         if(!annotation.isPresent()) {
             return; // Not marked as a test
         }
         CtAnnotation<?> testAnnotation = annotation.get();
-        CtExpression value = testAnnotation.getValue("timeout");
-
-
-        if(value == null) {
-            return; // Does not specify a timeout
-        }
-        value = getFactory().createBinaryOperator(getFactory().createLiteral(timeoutFactor), value, BinaryOperatorKind.MUL);
-        testAnnotation.addValue("timeout", value);
+        testAnnotation.addValue("timeout", getFactory().createLiteral(0L));
     }
 
-    protected void insertObservationPoints(CtClass<?> observerClass, CtMethod<?> method) {
-        ExpressionProcessor processor = new ExpressionProcessor(observerClass, method);
-        processor.setFactory(getFactory());
+    protected void insertObservationPoints(CtMethod<?> method) {
+        ObservationAttacherProcessor processor = new ObservationAttacherProcessor(method);
         ProcessingVisitor visitor = new ProcessingVisitor(getFactory());
         visitor.setProcessor(processor);
         method.getBody().accept(visitor);
         processor.processingDone();
-    }
-
-    protected CtClass<?> getObserverClass(CtClass<?> container) {
-        final String observerName = "___stamp__dynamic__observer___";
-        CtClass<?> observerClass = container.getNestedType(observerName);
-        if(observerClass != null)
-            return observerClass;
-        observerClass = getFactory().createClass(container, observerName);
-        observerClass.setModifiers(Collections.singleton(ModifierKind.STATIC));
-        //template.baseFilePath = reportPath;
-        template.apply(observerClass);
-        return observerClass;
     }
 
 }

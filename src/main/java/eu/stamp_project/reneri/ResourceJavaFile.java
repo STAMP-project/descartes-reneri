@@ -29,8 +29,12 @@ public class ResourceJavaFile implements SpoonFile {
     @Override
     public boolean isActualFile() { return false; }
 
+    // Should return null.
+    // Returning an instance of VirtualFolder makes Spoon to include ALL files in the Maven project
+    // if the resource file is added as an input. This does not happen when the resource file is added as a template.
+    // This behavior may de derived from the fact that the path of a VirtualFolder instance is ".".
     @Override
-    public SpoonFolder getParent() { return new VirtualFolder(); }
+    public SpoonFolder getParent() { return null; }
 
     @Override
     public String getName() { return resourceName; }

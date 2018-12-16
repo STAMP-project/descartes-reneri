@@ -7,6 +7,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import eu.stamp_project.mutationtest.descartes.codegeneration.MutationClassAdapter;
 import eu.stamp_project.reneri.observation.ObserverClassProcessor;
+import eu.stamp_project.reneri.observation.StateObserver;
 import org.apache.maven.artifact.DependencyResolutionRequiredException;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -22,6 +23,7 @@ import org.pitest.reloc.asm.ClassWriter;
 import spoon.MavenLauncher;
 import spoon.reflect.CtModel;
 import spoon.reflect.declaration.CtClass;
+import spoon.reflect.declaration.CtType;
 
 import javax.tools.*;
 import java.io.*;
@@ -112,6 +114,7 @@ public class DiffExecutionMojo extends AbstractMojo {
             createEmptyDirectory(outputFolder.toPath());
 
             getLog().info("Instrumenting test classes");
+
             testClasses = instrumentTestClasses();
             if(testClasses.isEmpty()) {
                 getLog().warn("Stopping analysis as no test class was found");
@@ -120,6 +123,7 @@ public class DiffExecutionMojo extends AbstractMojo {
 
             getLog().info("Compiling instrumented test classes");
             compileInstrumentedTests();
+
 
             getLog().info("Loading stack traces");
             methodTraces = loadMethodTraces();
@@ -130,14 +134,13 @@ public class DiffExecutionMojo extends AbstractMojo {
             getLog().info("Executing mutation analysis");
             doMutationAnalysis();
         }
-        catch (IOException exc) {
+        catch (Throwable exc) {
             throw new MojoExecutionException("Process failed", exc);
         }
     }
 
     private Path getGeneratedTestsPath() {
-        Path testOutputPath = Paths.get(project.getBuild().getTestOutputDirectory());
-        return testOutputPath.getParent().resolve("generated-test-sources");
+        return Paths.get(project.getBuild().getTestOutputDirectory()).getParent().resolve("reneri-generated").toAbsolutePath();
     }
 
     private Set<CtClass<?>> instrumentTestClasses() throws MojoExecutionException {
@@ -148,8 +151,11 @@ public class DiffExecutionMojo extends AbstractMojo {
 
         MavenLauncher launcher = new MavenLauncher(project.getBasedir().getAbsolutePath(), MavenLauncher.SOURCE_TYPE.ALL_SOURCE);
 
-        launcher.addTemplateResource(new ResourceJavaFile("templates/ObserverTemplate.java"));
+        // Adding the observer to the path so it can be compiled at the same time as the project
+        launcher.addInputResource(new ResourceJavaFile("utils/StateObserver.java"));
         CtModel model = launcher.buildModel();
+
+
         Set<CtClass<?>> testClassesFound = TestClassFinder.findTestClasses(model);
 
         getLog().info("Test classes found: " + testClassesFound.size());
@@ -162,9 +168,21 @@ public class DiffExecutionMojo extends AbstractMojo {
 
         launcher.addProcessor( new ObserverClassProcessor(testClassesFound));
         launcher.process();
+
+        getLog().debug("Saving instrumented classes");
+
+
+
         launcher.setSourceOutputDirectory(testSourceOutputPath.toString());
+
+        CtClass<?> observerClass = (CtClass<?>)model.getRootPackage().getFactory().Type().get(StateObserver.class);
+
+        testClassesFound.add(observerClass);
+
         launcher.setOutputFilter(testClassesFound::contains);
         launcher.prettyprint();
+
+        testClassesFound.remove(observerClass);
 
         return testClassesFound;
     }
@@ -234,7 +252,7 @@ public class DiffExecutionMojo extends AbstractMojo {
         if(!task.call()) {
             getLog().error("Error while compiling instrumented test classes");
             for(Diagnostic fact : diagnostics.getDiagnostics()) {
-                getLog().error(String.format("%s in [%s,%s] %s ", fact.getMessage(Locale.ROOT), fact.getSource(), fact.getLineNumber(), fact.getColumnNumber()));
+                getLog().error(String.format("%s in [%s,%s] %s ", fact.getMessage(Locale.ROOT),  fact.getLineNumber(), fact.getColumnNumber(), fact.getSource()));
             }
 
             throw new MojoExecutionException("Errors found while compiling the instrumented test classes");
@@ -426,10 +444,6 @@ public class DiffExecutionMojo extends AbstractMojo {
             Files.walkFileTree(rootFolder, new FileVisitor<Path>() {
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
-
-                    if(dir.endsWith("eu/stamp_project/reneri")) {
-                        return FileVisitResult.SKIP_SUBTREE;
-                    }
                     return FileVisitResult.CONTINUE;
                 }
 

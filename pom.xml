@@ -86,9 +86,9 @@
                     src/main/java/eu/stamp_project/reneri/observation/
                 </directory>
                 <includes>
-                    <include>ObserverTemplate.java</include>
+                    <include>StateObserver.java</include>
                 </includes>
-                <targetPath>templates</targetPath>
+                <targetPath>utils</targetPath>
             </resource>
         </resources>
     </build>
