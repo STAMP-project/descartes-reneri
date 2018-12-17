@@ -5,6 +5,7 @@ import java.lang.reflect.Field;
 import java.text.NumberFormat;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Locale;
 
 public class StateObserver {
@@ -37,10 +38,14 @@ public class StateObserver {
     }
 
     private static boolean isAtomic(Class<?> type) {
-        return type.isPrimitive() || isWrapper(type);
+        return type == String.class || type.isPrimitive() || isWrapper(type);
     }
 
-    private static void initialize() {
+    protected static void initialize(Writer writer) {
+        output = writer;
+    }
+
+    protected static void initialize() {
         try {
 
             String folder = System.getProperty("stamp.reneri.folder");
@@ -65,25 +70,10 @@ public class StateObserver {
         }
     }
 
-//    public static void setCurrentPoint(String point) {
-//        currentPoint = point;
-//    }
-//
-//    public static void enter(String point) {
-//        currentPoint += SEP + point;
-//    }
-//
-//    public static void exit() {
-//        int index = currentPoint.lastIndexOf(SEP);
-//        if(index >= 0)
-//            currentPoint = currentPoint.substring(0, index);
-//    }
-
-
     private static void write(String text) {
         try {
             if (output == null) initialize();
-            output.write(text + "\n");
+            output.write(text);
             output.flush(); // This harms execution time
         }
         catch(IOException exc) {
@@ -91,26 +81,48 @@ public class StateObserver {
         }
     }
 
-    private static void observe(String point, String type, String value) {
-        write(String.format("{\"point\":\"%s\",\"type\":\"%s\",\"value\":%s}", point, type, value));
+
+    private static void writeJsonLine(String ... args) {
+        if(args.length == 0 ) {
+            throw new AssertionError("Must provide content to write a JSON line");
+        }
+        if(args.length %2 != 0) {
+            throw new AssertionError("The number of parameters to write a JSON line must be even");
+        }
+
+        StringBuilder builder = new StringBuilder();
+        builder.append("{\"").append(args[0]).append("\":").append(args[1]);
+        for(int index = 2; index < args.length; index+=2) {
+            builder.append(",\"").append(args[index]).append("\":").append(args[index+1]);
+        }
+        builder.append("}\n");
+        write(builder.toString());
     }
 
-    private static void observeNull(String point, Class<?> type, Object value) {
-        write(String.format("{\"point\":\"%s\",\"type:\":\"%s\",\"null\":%s}", point, type.getTypeName(), value == null));
+    private static String quote(String value) {
+        return String.format("\"%s\"", escape(value));
     }
 
-    private static void observeThrownException(String point, Throwable exc) {
-        write(String.format("{\"point\": \"%s\", \"exception\": \"%s\", \"message\": \"%s\"}", point, exc.getClass().getTypeName(), exc.getMessage()));
+    public static void observe(String point, String type, String value) {
+        writeJsonLine("point", quote(point), "type", quote(type), "value", value);
     }
 
-    private static void observeAtomic(String point, Class<?> type, Object value) {
+    public static void observeNull(String point, Class<?> type, Object value) {
+        writeJsonLine("point", quote(point), "type", quote(type.getTypeName()), "null", Boolean.toString(value==null));
+    }
+
+    public static void observeThrownException(String point, Throwable exc) {
+        writeJsonLine("point", quote(point), "exception", quote(exc.getClass().getTypeName()), "message", quote(exc.getMessage()));
+    }
+
+    public static void observeAtomic(String point, Class<?> type, Object value) {
         if(value instanceof String) {
             observe_java_lang_String(point, (String)value);
         }
         else {
             String valueToPrint = (value == null)?"null":value.toString();
             if(value instanceof Character) { // Special case
-                valueToPrint = String.format("\"%s\"", value.toString());
+                valueToPrint = quote(valueToPrint);
             }
             observe(point, type.getTypeName(), valueToPrint);
         }
@@ -130,13 +142,16 @@ public class StateObserver {
             return null;
         }
 
-        for(Field field : value.getClass().getFields()) {
+        for(Field field :  getFields(value.getClass())) {
+            if(!field.isAccessible()) {
+                field.setAccessible(true);
+            }
             Class<?> fieldType = field.getType();
             String fieldPoint = point + "|" + field.getName();
 
             try {
                 Object fieldValue = field.get(value);
-                if (isAtomic(type)) {
+                if (isAtomic(fieldType)) {
                     observeAtomic(fieldPoint, fieldType, fieldValue);
                 } else {
                     observeNull(fieldPoint, fieldType, fieldValue);
@@ -204,7 +219,7 @@ public class StateObserver {
     }
 
     public static String observe_java_lang_String(String point, String s) {
-        observe(point, "java.lang.String", (s == null)? "null":String.format("\"%s\"", escape(s)));
+        observe(point, "java.lang.String", (s == null)? "null": quote(s));
         return s;
     }
 
@@ -219,12 +234,12 @@ public class StateObserver {
     }
 
     public static char observe_char(String point, char c) {
-        observe(point, "char", String.format("\"%s\"", Character.toString(c)));
+        observe(point, "char", quote(Character.toString(c)));
         return c;
     }
 
     public static Character observe_java_lang_Character(String point, Character c) {
-        observe(point, "char", (c==null)?"null":String.format("\"%s\"", c.toString()));
+        observe(point, "char", (c==null)?"null":quote(c.toString()));
         return c;
     }
 
@@ -267,6 +282,61 @@ public class StateObserver {
             result.write(toWrite);
         }
         return result.getBuffer().toString();
+    }
+
+    protected static class FieldIterator implements Iterator<Field> {
+
+        private Class<?> initialClass;
+
+        private Class<?> currentClass;
+
+        private Field[] currentDeclaredFields;
+
+        private int currentFieldIndex = -1;
+
+        public FieldIterator(Class<?> klass) {
+            this.initialClass = klass;
+
+            currentClass = initialClass;
+            currentDeclaredFields = currentClass.getDeclaredFields();
+            currentFieldIndex = -1;
+        }
+
+        @Override
+        public boolean hasNext() {
+
+            // Iteration ended
+            if(currentDeclaredFields == null) {
+                return false;
+            }
+            // Iterating through the fields of a class
+            currentFieldIndex++;
+            if(currentFieldIndex < currentDeclaredFields.length) {
+                return true;
+            }
+
+            do {
+                currentClass = currentClass.getSuperclass();
+                currentDeclaredFields = (currentClass != null)? currentClass.getDeclaredFields():null;
+            }
+            while(currentDeclaredFields != null && currentDeclaredFields.length == 0);
+
+            if(currentDeclaredFields == null) {
+                return false;
+            }
+
+            currentFieldIndex = 0;
+            return true;
+        }
+
+        @Override
+        public Field next() {
+            return currentDeclaredFields[currentFieldIndex];
+        }
+    }
+
+    private static Iterable<Field> getFields(Class<?> klass) {
+        return () -> new FieldIterator(klass);
     }
 
 
