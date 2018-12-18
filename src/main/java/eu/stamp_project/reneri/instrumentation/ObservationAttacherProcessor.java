@@ -1,4 +1,4 @@
-package eu.stamp_project.reneri.observation;
+package eu.stamp_project.reneri.instrumentation;
 
 import spoon.reflect.code.CtExpression;
 import spoon.reflect.code.CtInvocation;
@@ -6,7 +6,6 @@ import spoon.reflect.code.CtLiteral;
 import spoon.reflect.code.CtTypeAccess;
 import spoon.reflect.declaration.*;
 import spoon.reflect.factory.Factory;
-import spoon.reflect.reference.CtExecutableReference;
 import spoon.reflect.reference.CtTypeReference;
 
 import java.util.*;

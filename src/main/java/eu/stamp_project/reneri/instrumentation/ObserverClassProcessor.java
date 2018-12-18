@@ -1,21 +1,14 @@
-package eu.stamp_project.reneri.observation;
+package eu.stamp_project.reneri.instrumentation;
 
 import spoon.SpoonException;
 import spoon.processing.AbstractProcessor;
-import spoon.processing.Property;
-import spoon.reflect.code.BinaryOperatorKind;
-import spoon.reflect.code.CtExpression;
 import spoon.reflect.declaration.CtAnnotation;
 import spoon.reflect.declaration.CtClass;
 import spoon.reflect.declaration.CtMethod;
-import spoon.reflect.declaration.ModifierKind;
 import spoon.support.visitor.ProcessingVisitor;
 
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import static eu.stamp_project.reneri.TestClassFinder.getAnnotation;
 

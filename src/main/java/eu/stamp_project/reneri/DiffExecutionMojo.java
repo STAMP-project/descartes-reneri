@@ -6,8 +6,8 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import eu.stamp_project.mutationtest.descartes.codegeneration.MutationClassAdapter;
-import eu.stamp_project.reneri.observation.ObserverClassProcessor;
-import eu.stamp_project.reneri.observation.StateObserver;
+import eu.stamp_project.reneri.instrumentation.ObserverClassProcessor;
+import eu.stamp_project.reneri.instrumentation.StateObserver;
 import org.apache.maven.artifact.DependencyResolutionRequiredException;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -23,7 +23,6 @@ import org.pitest.reloc.asm.ClassWriter;
 import spoon.MavenLauncher;
 import spoon.reflect.CtModel;
 import spoon.reflect.declaration.CtClass;
-import spoon.reflect.declaration.CtType;
 
 import javax.tools.*;
 import java.io.*;

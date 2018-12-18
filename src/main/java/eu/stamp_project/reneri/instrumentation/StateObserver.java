@@ -1,14 +1,29 @@
-package eu.stamp_project.reneri.observation;
+package eu.stamp_project.reneri.instrumentation;
 
 import java.io.*;
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.text.NumberFormat;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Locale;
+import java.util.*;
 
 public class StateObserver {
+
+    private static String[] REPLACEMENT;
+
+    static {
+        // https://github.com/google/gson/blob/9d44cbc19a73b45971c4ecb33c8d34d673afa210/gson/src/main/java/com/google/gson/stream/JsonWriter.java
+        REPLACEMENT = new String[128];
+        for (int i = 0; i <= 0x1f; i++) {
+            REPLACEMENT[i] = String.format("\\u%04x", (int) i);
+        }
+        REPLACEMENT['"'] = "\\\"";
+        REPLACEMENT['\\'] = "\\\\";
+        REPLACEMENT['\t'] = "\\t";
+        REPLACEMENT['\b'] = "\\b";
+        REPLACEMENT['\n'] = "\\n";
+        REPLACEMENT['\r'] = "\\r";
+        REPLACEMENT['\f'] = "\\f";
+    }
 
 
     private static Writer output;
@@ -130,41 +145,51 @@ public class StateObserver {
 
     public static <T> T observeState(String point, Class type, Object value) {
         // The type is needed for when the value is null at runtime
-        if(isAtomic(type)) {
-            observeAtomic(point, type, value);
-            @SuppressWarnings("unchecked")
-            T result = (T)value;
-            return result;
-        }
-
-        observeNull(point, type, value);
-        if(value == null) {
+        observeBasicState(point, type, value);
+        if (value == null) {
             return null;
         }
-
-        for(Field field :  getFields(value.getClass())) {
-            if(!field.isAccessible()) {
-                field.setAccessible(true);
-            }
-            Class<?> fieldType = field.getType();
-            String fieldPoint = point + "|" + field.getName();
-
-            try {
-                Object fieldValue = field.get(value);
-                if (isAtomic(fieldType)) {
-                    observeAtomic(fieldPoint, fieldType, fieldValue);
-                } else {
-                    observeNull(fieldPoint, fieldType, fieldValue);
+        if (!isAtomic(type) && !type.isArray()) {
+            for (Field field : getFields(value.getClass())) {
+                if (!field.isAccessible()) {
+                    field.setAccessible(true);
                 }
-            }
-            catch(Throwable exc) {
-                observeThrownException(point, exc);
+                Class<?> fieldType = field.getType();
+                String fieldPoint = point + "|" + field.getName();
+                try {
+                    Object fieldValue = field.get(value);
+                    observeBasicState(fieldPoint, fieldType, fieldValue);
+                } catch (Throwable exc) {
+                    observeThrownException(point, exc);
+                }
             }
         }
 
         @SuppressWarnings("unchecked")
-        T result = (T)value;
+        T result = (T) value;
         return result;
+    }
+
+    private static void observeBasicState(String point, Class type, Object value) {
+        if (isAtomic(type)) {
+            observeAtomic(point, type, value);
+            return;
+        }
+        observeNull(point, type, value);
+        if (value == null) {
+            return;
+        }
+        if (type.isArray()) {
+            observe_int(point + "|length", Array.getLength(value));
+            return;
+        }
+        if (value instanceof Collection) {
+            try {
+                observe_int(point + "|size", ((Collection) value).size());
+            } catch (Throwable exc) { //Just in case :)
+                observeThrownException(point + "|size", exc);
+            }
+        }
     }
 
 
@@ -243,41 +268,25 @@ public class StateObserver {
         return c;
     }
 
-
     public static String escape(String value) {
         StringWriter result = new StringWriter(value.length());
         for(int i=0; i< value.length(); i++) {
             char c = value.charAt(i);
             String toWrite = null;
-            switch (c) {
-                case '\u2028':
-                case '\u2029':
-                    toWrite = "\\u2028";
-                    break;
-                case '"':
-                    toWrite = "\\\"";
-                    break;
-                case '\\':
-                    toWrite = "\\\\";
-                    break;
-                case '\t':
-                    toWrite = "\\t";
-                    break;
-                case '\b':
-                    toWrite = "\\b";
-                    break;
-                case '\n':
-                    toWrite = "\\n";
-                    break;
-                case '\r':
-                    toWrite = "\\r";
-                    break;
-                case '\f':
-                    toWrite = "\\f";
-                    break;
-                default:
+            if(c < REPLACEMENT.length) {
+                toWrite = REPLACEMENT[c];
+                if(toWrite == null) {
                     toWrite = Character.toString(c);
-                    break;
+                }
+            }
+            else if (c == '\u2028') {
+                toWrite = "\\u2028";
+            }
+            else if(c == '\u2029') {
+                toWrite = "\\u2028";
+            }
+            else {
+                toWrite = Character.toString(c);
             }
             result.write(toWrite);
         }

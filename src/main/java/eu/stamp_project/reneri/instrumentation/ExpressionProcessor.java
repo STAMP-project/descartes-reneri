@@ -1,8 +1,9 @@
-package eu.stamp_project.reneri.observation;
+package eu.stamp_project.reneri.instrumentation;
 
 import spoon.processing.AbstractProcessor;
 import spoon.reflect.code.*;
 import spoon.reflect.declaration.CtAnnotation;
+import spoon.reflect.declaration.CtElement;
 import spoon.reflect.declaration.CtMethod;
 import spoon.reflect.factory.TypeFactory;
 import spoon.reflect.reference.CtTypeReference;
@@ -71,13 +72,34 @@ public abstract class ExpressionProcessor extends AbstractProcessor<CtExpression
     }
 
     private boolean canProcessASTNode(CtExpression<?> node) {
-        if(node.getParent() instanceof CtAssignment) {
+
+        CtElement parent = node.getParent();
+
+        // Assignments
+        if(parent instanceof CtAssignment || parent instanceof  CtUnaryOperator) {
             // An assignment is an expression
             // and so it is the left side
             // processing the left part leads to compile errors.
             // We process the assignment as a whole.
+            // Could have been done using CtRole.
+
+            // There is no need to observe a subexpression of unary operators.
             return false;
         }
+
+        // Unary operators
+        if(node instanceof CtUnaryOperator) {
+            UnaryOperatorKind operator = ((CtUnaryOperator)node).getKind();
+            // Don't observe post-(increment|decrement) operators, as their semantic can be disrupted
+            return !(operator.equals(UnaryOperatorKind.POSTDEC) || operator.equals(UnaryOperatorKind.POSTINC));
+        }
+
+        // Class literals
+        if(node instanceof CtFieldRead) {
+            CtFieldRead read  = (CtFieldRead)node;
+            return !(read.getTarget() instanceof CtTypeAccess && read.getVariable().getSimpleName().equals("class"));
+        }
+
         return !Stream.of(
                 CtLiteral.class,
                 CtSuperAccess.class,
