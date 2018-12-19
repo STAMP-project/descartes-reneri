@@ -11,7 +11,7 @@ public class FixedValue extends AtomicValueCondition {
     }
 
     @Override
-    public boolean holds(AtomicValueObservation observation) {
+    public boolean holdsFor(AtomicValueObservation observation) {
         return value.equals(observation.getValue());
     }
 

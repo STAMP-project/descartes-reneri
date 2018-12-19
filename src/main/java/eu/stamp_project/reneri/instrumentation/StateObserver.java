@@ -119,7 +119,7 @@ public class StateObserver {
     }
 
     public static void observe(String point, String type, String value) {
-        writeJsonLine("point", quote(point), "type", quote(type), "value", value);
+        writeJsonLine("point", quote(point), "type", quote(type), "NullValueCondition", value);
     }
 
     public static void observeNull(String point, Class<?> type, Object value) {
@@ -144,7 +144,7 @@ public class StateObserver {
     }
 
     public static <T> T observeState(String point, Class type, Object value) {
-        // The type is needed for when the value is null at runtime
+        // The type is needed for when the NullValueCondition is null at runtime
         observeBasicState(point, type, value);
         if (value == null) {
             return null;

@@ -2,6 +2,7 @@ package eu.stamp_project.reneri.observations;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.stream.Stream;
 
 public class PointObservationCollection {
 
@@ -24,5 +25,10 @@ public class PointObservationCollection {
     public Observation[] get(int index) {
         return archives.get(index);
     }
+
+    public Stream<Observation[]> stream() {
+        return archives.stream();
+    }
+
 
 }

@@ -2,10 +2,10 @@ package eu.stamp_project.reneri.inference;
 
 import eu.stamp_project.reneri.observations.ValueObservation;
 
-public class AllNull extends NullCondition {
+public class AllNull extends NullValueCondition {
 
     @Override
-    public boolean holds(ValueObservation observation) {
+    public boolean holdsFor(ValueObservation observation) {
         return observation.isNull();
     }
 }

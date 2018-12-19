@@ -1,20 +1,9 @@
 package eu.stamp_project.reneri.inference;
 
-import eu.stamp_project.reneri.observations.AtomicValueObservation;
 import eu.stamp_project.reneri.observations.Observation;
 
-public interface Condition<T extends Observation> {
+import java.util.function.Predicate;
 
-    boolean canTarget(T observation);
+public interface Condition extends Predicate<Observation[]> {
 
-    boolean holds(T observation);
-
-    default boolean appliesTo(T[] observations) {
-        for(T obs : observations) {
-            if(canTarget(obs) && !holds(obs)) {
-                return false;
-            }
-        }
-        return true;
-    }
 }

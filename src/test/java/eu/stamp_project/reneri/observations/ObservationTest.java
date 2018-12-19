@@ -11,9 +11,9 @@ public class ObservationTest {
     @Test
     public void testCreateAtomicValueObservation() throws InvalidObservationException {
 
-        Observation observation = Observation.fromLine("{\"point\": \"0\", \"type\": \"int\", \"value\": 3}\n");
+        Observation observation = Observation.fromLine("{\"point\": \"0\", \"type\": \"int\", \"NullValueCondition\": 3}\n");
 
-        assertTrue("Observation is expected to be an atomic value observation", observation instanceof AtomicValueObservation);
+        assertTrue("Observation is expected to be an atomic NullValueCondition observation", observation instanceof AtomicValueObservation);
         assertEquals("0", observation.getPointcut());
 
         AtomicValueObservation valueObservation = (AtomicValueObservation)observation;
@@ -26,12 +26,12 @@ public class ObservationTest {
     public void testCreateNullValueObservation() throws InvalidObservationException {
         Observation observation = Observation.fromLine("{\"point\": \"0\", \"type\": \"java.util.List\", \"null\": true}\n");
 
-        assertTrue("Observation is expected to be a null value observation", observation instanceof NullValueObservation);
+        assertTrue("Observation is expected to be a null NullValueCondition observation", observation instanceof NullValueObservation);
         assertEquals("0", observation.getPointcut());
 
         NullValueObservation nullValueObservation = (NullValueObservation)observation;
-        assertEquals("Observed value must be of type java.util.List", "java.util.List", nullValueObservation.getObservedTypeName());
-        assertTrue("Observed value must be null", nullValueObservation.isNull());
+        assertEquals("Observed NullValueCondition must be of type java.util.List", "java.util.List", nullValueObservation.getObservedTypeName());
+        assertTrue("Observed NullValueCondition must be null", nullValueObservation.isNull());
     }
 
     @Test

@@ -37,7 +37,7 @@ public abstract class Observation {
             return new NullValueObservation(pointcut, object.get("type").getAsString(), object.get("null").getAsBoolean());
         }
 
-        return new AtomicValueObservation(pointcut, get(object, "type"), get(object, "value"));
+        return new AtomicValueObservation(pointcut, get(object, "type"), get(object, "NullValueCondition"));
     }
 
 }
