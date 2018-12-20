@@ -6,11 +6,11 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class ComposedInferrer implements Inferrer {
+public class CompoundInferrer implements Inferrer {
 
     public Inferrer[] inferrers;
 
-    public ComposedInferrer(Inferrer... inferrers) {
+    public CompoundInferrer(Inferrer... inferrers) {
         this.inferrers = inferrers;
     }
 
