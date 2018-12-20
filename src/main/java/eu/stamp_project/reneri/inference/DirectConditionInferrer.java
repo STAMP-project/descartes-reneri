@@ -21,7 +21,7 @@ public class DirectConditionInferrer implements Inferrer {
     }
 
     @Override
-    public List<Predicate<Observation[]>> infer(PointObservationCollection observationCollection) {
+    public List<Condition> infer(PointObservationCollection observationCollection) {
         Predicate<Condition> applicable = condition -> observationCollection.stream().allMatch(condition);
         return Stream.of(conditions).filter(applicable).collect(Collectors.toList());
     }

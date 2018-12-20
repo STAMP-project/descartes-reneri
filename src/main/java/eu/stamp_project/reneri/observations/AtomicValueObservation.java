@@ -53,13 +53,18 @@ public class AtomicValueObservation extends ValueObservation {
             if(this.type == String.class) {
                return; // No conversion needed //TODO: Check the escaped characters
             }
+            if(this.type == char.class || this.type == Character.class) {
+                // Characters are special cases
+                this.value = literalValue.charAt(0);
+                return;
+            }
 
             Class<?> wrapper = (type.isPrimitive())? wrap(type) : type;
             Method converter = wrapper.getMethod("valueOf", String.class);
             this.value = converter.invoke(null, literalValue);
         }
         catch(ClassNotFoundException exc) {
-            throw new InvalidObservationException("Type " + typeName + "  was not found when building the observation. It is probably not a primitive or wrapper type nor String.", exc);
+            throw new InvalidObservationException("Type " + typeName + "  was not found while building the observation. It is probably not a primitive or wrapper type nor String.", exc);
 
         }
         catch (NoSuchMethodException exc) {

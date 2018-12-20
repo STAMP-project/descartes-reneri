@@ -1,6 +1,7 @@
 package eu.stamp_project.reneri.observations;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 public abstract class Observation {
@@ -19,7 +20,12 @@ public abstract class Observation {
         if(!object.has(property)) {
             throw new InvalidObservationException("Observation is expected to have a '" + property + "' attribute.");
         }
-        return object.get(property).getAsString();
+
+        JsonElement propertyValue = object.get(property);
+        if(propertyValue.isJsonNull()) {
+            return "null";
+        }
+        return propertyValue.getAsString();
     }
 
     public static Observation fromLine(String line) throws InvalidObservationException {
@@ -37,7 +43,7 @@ public abstract class Observation {
             return new NullValueObservation(pointcut, object.get("type").getAsString(), object.get("null").getAsBoolean());
         }
 
-        return new AtomicValueObservation(pointcut, get(object, "type"), get(object, "NullValueCondition"));
+        return new AtomicValueObservation(pointcut, get(object, "type"), get(object, "value"));
     }
 
 }

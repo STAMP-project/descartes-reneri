@@ -1,14 +1,15 @@
 package eu.stamp_project.reneri.inference;
 
-import com.sun.tools.javac.util.List;
+
 import eu.stamp_project.reneri.observations.AtomicValueObservation;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
 public class SetOfValues extends AtomicValueCondition {
 
-    private static Set<Class> ALLOWED_TYPES = new HashSet<>(List.of(
+    private static Set<Class> ALLOWED_TYPES = new HashSet<>(Arrays.asList(
             short.class,
             byte.class,
             int.class,
