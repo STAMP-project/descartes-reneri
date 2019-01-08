@@ -105,6 +105,8 @@ public class DiffExecutionMojo extends AbstractMojo {
 
     private Set<CtClass<?>> testClasses;
 
+    private InheritanceGraph graph;
+
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         try {
@@ -157,6 +159,8 @@ public class DiffExecutionMojo extends AbstractMojo {
 
         Set<CtClass<?>> testClassesFound = TestClassFinder.findTestClasses(model);
 
+        graph = new InheritanceGraph(testClassesFound);
+
         getLog().info("Test classes found: " + testClassesFound.size());
 
         if(getLog().isDebugEnabled()) {
@@ -169,8 +173,6 @@ public class DiffExecutionMojo extends AbstractMojo {
         launcher.process();
 
         getLog().debug("Saving instrumented classes");
-
-
 
         launcher.setSourceOutputDirectory(testSourceOutputPath.toString());
 
@@ -360,7 +362,7 @@ public class DiffExecutionMojo extends AbstractMojo {
         return classWriter.toByteArray();
     }
 
-    private Set<String> getClosestTestClasses(MutationIdentifier mutation) {
+    private Set<String> getTestClassesToExecute(MutationIdentifier mutation) {
         if(executeAllTests) {
             return Collections.emptySet();
         }
@@ -368,7 +370,8 @@ public class DiffExecutionMojo extends AbstractMojo {
         HashSet<String> result = new HashSet<>();
 
         for(MethodTracesEntry entry : methodTraces) {
-            result.addAll(entry.getClosestClassesTo(mutation, testClasses));
+            Set<String> closestTests = entry.getClosestClassesTo(mutation, testClasses);
+            result.addAll(graph.getInheritanceClousure(closestTests)); // Include derived classes
         }
         return result;
     }
@@ -401,7 +404,7 @@ public class DiffExecutionMojo extends AbstractMojo {
             byte[] originalClass = Files.readAllBytes(pathToClass);
             write(pathToClass, mutate(originalClass, mutation));
             //Select the tests to execute
-            Set<String> tests = getClosestTestClasses(mutation);
+            Set<String> tests = getTestClassesToExecute(mutation);
             //Save the information
             saveMutationInfo(resultFolderPath, mutation, tests);
             // Execute the tests
