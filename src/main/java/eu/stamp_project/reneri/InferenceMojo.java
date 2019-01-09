@@ -1,9 +1,6 @@
 package eu.stamp_project.reneri;
 
-import eu.stamp_project.reneri.inference.ComposedInferrer;
-import eu.stamp_project.reneri.inference.Condition;
-import eu.stamp_project.reneri.inference.DirectConditionInferrer;
-import eu.stamp_project.reneri.inference.Inferrer;
+import eu.stamp_project.reneri.inference.*;
 import eu.stamp_project.reneri.observations.InvalidObservationFileException;
 import eu.stamp_project.reneri.observations.ObservationCollection;
 import eu.stamp_project.reneri.observations.PointObservationCollection;
@@ -12,12 +9,9 @@ import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
-import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.MavenProject;
 
 import java.io.File;
-import java.util.List;
-import java.util.Set;
 
 //TODO: Refactor with the other Mojo
 //TODO: Check that the files are in position
@@ -49,7 +43,7 @@ public class InferenceMojo extends AbstractMojo {
                     continue;
                 }
                 getLog().info("Checking folder: " + file.getName());
-                infereAndMatch(originalObservations, new ObservationCollection(file.toPath()));
+                inferAndMatch(originalObservations, new ObservationCollection(file.toPath()));
             }
         }
         catch (InvalidObservationFileException exc) {
@@ -57,7 +51,7 @@ public class InferenceMojo extends AbstractMojo {
         }
     }
 
-    protected void infereAndMatch(ObservationCollection original, ObservationCollection mutated) {
+    protected void inferAndMatch(ObservationCollection original, ObservationCollection mutated) {
         Inferrer inferrer = getInferrer();
         for(String point :  mutated.getObservedPoints()) {
             if(!original.has(point)) {
@@ -65,18 +59,33 @@ public class InferenceMojo extends AbstractMojo {
                 continue;
             }
             //TODO: Possible optimization, keep a cached list of conditions already inferred
+
+            String debugPoint = "org.apache.commons.cli.ParserTestCase|testAmbiguousPartialLongOption1()|19|detailMessage";
+            boolean debugging = point.equals(debugPoint);
+
             PointObservationCollection originalPoint = original.get(point);
             PointObservationCollection mutatedPoint = mutated.get(point);
 
             for(Condition condition : inferrer.infer(originalPoint)) {
+
+                if(debugging) {
+                    getLog().info(condition.toString());
+                }
+
                 if(!condition.appliesTo(mutatedPoint)) {
                     getLog().info(String.format("Condition %s does not apply to mutated point %s", condition.getClass().getTypeName(), point));
                 }
+                /*else {
+                    getLog().info(String.format("Condition %s also applies to mutated point %s", condition.getClass(), point));
+                }*/
+
             }
         }
     }
 
     public Inferrer getInferrer() {
-        return new DirectConditionInferrer();
+        return new CompoundInferrer(
+                new DirectConditionInferrer(),
+                new ExactValuesConditionInferrer());
     }
 }

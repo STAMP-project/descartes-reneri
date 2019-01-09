@@ -15,7 +15,7 @@ public class NullAndNotNull extends NullValueCondition {
     }
 
     @Override
-    public boolean test(Observation[] observations) {
+    public boolean test(Observation... observations) {
         return Arrays.stream(observations)
                 .map(this::toSpecifiedType)
                 .filter(Optional::isPresent)

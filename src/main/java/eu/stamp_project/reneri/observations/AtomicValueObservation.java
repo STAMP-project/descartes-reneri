@@ -51,7 +51,8 @@ public class AtomicValueObservation extends ValueObservation {
             }
 
             if(this.type == String.class) {
-               return; // No conversion needed //TODO: Check the escaped characters
+                this.value = literalValue; //TODO: Unescape the string, it is not needed to detect a change but it is for precise condition inference
+                return;
             }
             if(this.type == char.class || this.type == Character.class) {
                 // Characters are special cases

@@ -20,4 +20,12 @@ public abstract class NullValueCondition extends TargetedCondition<ValueObservat
         return true;
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        // All instances of the derived classes are equal since they all implement the same condition
+        // they could be singleton by we are avoiding the pattern ;)
+        return obj.getClass().equals(getClass());
+    }
+
+
 }

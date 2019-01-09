@@ -10,7 +10,7 @@ import static org.junit.Assert.*;
 
 public class ObservationTest {
 
-    //TODO: Test escape values
+    //TODO: Test escaped values
 
     @Test
     public void testCreateAtomicValueObservation() throws InvalidObservationException {

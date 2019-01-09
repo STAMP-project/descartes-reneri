@@ -33,7 +33,7 @@ public abstract class TargetedCondition<T extends Observation> implements Condit
 
     protected Optional<T> toSpecifiedType(Observation observation) {
         // One can't do observation instanceof T
-        if(observation.getClass().equals(observationType)) {
+        if(observationType.isAssignableFrom(observation.getClass())) {
             return Optional.of((T)observation);
         }
         return Optional.empty();
@@ -51,7 +51,7 @@ public abstract class TargetedCondition<T extends Observation> implements Condit
      * @param observations
      * @return
      */
-    public boolean test(Observation[] observations) {
+    public boolean test(Observation... observations) {
         List<T> toTarget = Arrays.stream(observations)
                 .map(this::toSpecifiedType)
                 .filter(Optional::isPresent)

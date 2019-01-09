@@ -3,6 +3,7 @@ package eu.stamp_project.reneri.instrumentation;
 import java.io.*;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.text.NumberFormat;
 import java.util.*;
 
@@ -119,7 +120,7 @@ public class StateObserver {
     }
 
     public static void observe(String point, String type, String value) {
-        writeJsonLine("point", quote(point), "type", quote(type), "NullValueCondition", value);
+        writeJsonLine("point", quote(point), "type", quote(type), "value", value);
     }
 
     public static void observeNull(String point, Class<?> type, Object value) {
@@ -144,31 +145,42 @@ public class StateObserver {
     }
 
     public static <T> T observeState(String point, Class type, Object value) {
-        // The type is needed for when the NullValueCondition is null at runtime
+        // The type is needed for when the value is null at runtime
         observeBasicState(point, type, value);
         if (value == null) {
             return null;
         }
         if (!isAtomic(type) && !type.isArray()) {
-            for (Field field : getFields(value.getClass())) {
-                if (!field.isAccessible()) {
-                    field.setAccessible(true);
-                }
-                Class<?> fieldType = field.getType();
-                String fieldPoint = point + "|" + field.getName();
-                try {
-                    Object fieldValue = field.get(value);
-                    observeBasicState(fieldPoint, fieldType, fieldValue);
-                } catch (Throwable exc) {
-                    observeThrownException(point, exc);
-                }
-            }
+            observeInternalState(point, value);
+
         }
 
         @SuppressWarnings("unchecked")
         T result = (T) value;
         return result;
     }
+
+    private static void observeInternalState(String point, Object value) {
+        for (Field field : getFields(value.getClass())) {
+            if (!field.isAccessible()) {
+                field.setAccessible(true);
+            }
+            Class<?> fieldType = field.getType();
+            String fieldPoint = point + "|" + field.getName();
+            try {
+                Object fieldValue = field.get(value);
+                observeBasicState(fieldPoint, fieldType, fieldValue);
+            } catch (Throwable exc) {
+                observeThrownException(point, exc);
+            }
+        }
+    }
+
+    /*private static void observeComputedState(String point, Object value) {
+        for(Method method : value.getClass().getMethods()) {
+            String methodName = method.getName();
+        }
+    }*/
 
     private static void observeBasicState(String point, Class type, Object value) {
         if (isAtomic(type)) {
@@ -347,6 +359,7 @@ public class StateObserver {
     private static Iterable<Field> getFields(Class<?> klass) {
         return () -> new FieldIterator(klass);
     }
+
 
 
 }
