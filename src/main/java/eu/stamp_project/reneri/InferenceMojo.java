@@ -60,25 +60,14 @@ public class InferenceMojo extends AbstractMojo {
             }
             //TODO: Possible optimization, keep a cached list of conditions already inferred
 
-            String debugPoint = "org.apache.commons.cli.ParserTestCase|testAmbiguousPartialLongOption1()|19|detailMessage";
-            boolean debugging = point.equals(debugPoint);
-
             PointObservationCollection originalPoint = original.get(point);
             PointObservationCollection mutatedPoint = mutated.get(point);
 
             for(Condition condition : inferrer.infer(originalPoint)) {
 
-                if(debugging) {
-                    getLog().info(condition.toString());
-                }
-
                 if(!condition.appliesTo(mutatedPoint)) {
                     getLog().info(String.format("Condition %s does not apply to mutated point %s", condition.getClass().getTypeName(), point));
                 }
-                /*else {
-                    getLog().info(String.format("Condition %s also applies to mutated point %s", condition.getClass(), point));
-                }*/
-
             }
         }
     }
