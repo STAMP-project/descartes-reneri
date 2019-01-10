@@ -6,10 +6,13 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.text.NumberFormat;
 import java.util.*;
+import java.util.regex.Pattern;
 
 public class StateObserver {
 
     private static String[] REPLACEMENT;
+
+    private static Pattern GETTER_NAME = Pattern.compile("^(is|has|get)[A-Z0-9_].*$");
 
     static {
         // https://github.com/google/gson/blob/9d44cbc19a73b45971c4ecb33c8d34d673afa210/gson/src/main/java/com/google/gson/stream/JsonWriter.java
@@ -152,7 +155,7 @@ public class StateObserver {
         }
         if (!isAtomic(type) && !type.isArray()) {
             observeInternalState(point, value);
-
+            observeComputedState(point, value);
         }
 
         @SuppressWarnings("unchecked")
@@ -176,11 +179,28 @@ public class StateObserver {
         }
     }
 
-    /*private static void observeComputedState(String point, Object value) {
+    private static boolean isAGetter(Method method) {
+        String name = method.getName();
+        return method.getParameterCount() == 0 &&
+                !name.equals("getClass") &&
+                GETTER_NAME.matcher(name).matches();
+    }
+
+    private static void observeComputedState(String point, Object value) {
         for(Method method : value.getClass().getMethods()) {
-            String methodName = method.getName();
+            if(!isAGetter(method)) {
+                continue;
+            }
+            String pointcut = String.format("%s|#%s", point, method.getName());
+            try {
+                Object result = method.invoke(value);
+                observeBasicState(pointcut, method.getReturnType(), result);
+            }
+            catch (Throwable exc) {
+                observeThrownException(pointcut, exc);
+            }
         }
-    }*/
+    }
 
     private static void observeBasicState(String point, Class type, Object value) {
         if (isAtomic(type)) {
@@ -196,10 +216,11 @@ public class StateObserver {
             return;
         }
         if (value instanceof Collection) {
+            String sizePointCut = point + "|#size";
             try {
-                observe_int(point + "|size", ((Collection) value).size());
+                observe_int(sizePointCut, ((Collection) value).size());
             } catch (Throwable exc) { //Just in case :)
-                observeThrownException(point + "|size", exc);
+                observeThrownException(sizePointCut, exc);
             }
         }
     }
