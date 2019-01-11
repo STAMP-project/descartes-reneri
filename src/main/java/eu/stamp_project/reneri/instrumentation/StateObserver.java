@@ -1,9 +1,11 @@
 package eu.stamp_project.reneri.instrumentation;
 
+
 import java.io.*;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.text.NumberFormat;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -12,7 +14,10 @@ public class StateObserver {
 
     private static String[] REPLACEMENT;
 
-    private static Pattern GETTER_NAME = Pattern.compile("^(is|has|get)[A-Z0-9_].*$");
+    private static Pattern GETTER_NAME = Pattern.compile("^get[A-Z0-9_].*$");
+
+    private static Pattern BOOLEAN_GETTER_NAME = Pattern.compile("^(is|has)[A-Z0-9_].*$");
+
 
     static {
         // https://github.com/google/gson/blob/9d44cbc19a73b45971c4ecb33c8d34d673afa210/gson/src/main/java/com/google/gson/stream/JsonWriter.java
@@ -155,7 +160,7 @@ public class StateObserver {
         }
         if (!isAtomic(type) && !type.isArray()) {
             observeInternalState(point, value);
-            observeComputedState(point, value);
+//            observeComputedState(point, value);
         }
 
         @SuppressWarnings("unchecked")
@@ -180,10 +185,12 @@ public class StateObserver {
     }
 
     private static boolean isAGetter(Method method) {
+        if (Modifier.isStatic(method.getModifiers()) || method.getParameterCount() > 0) {
+            return false;
+        }
         String name = method.getName();
-        return method.getParameterCount() == 0 &&
-                !name.equals("getClass") &&
-                GETTER_NAME.matcher(name).matches();
+        return GETTER_NAME.matcher(name).matches() ||
+                (method.getReturnType().equals(boolean.class) && BOOLEAN_GETTER_NAME.matcher(name).matches());
     }
 
     private static void observeComputedState(String point, Object value) {
