@@ -148,12 +148,17 @@ public class StateObserver {
             if(value instanceof Character) { // Special case
                 valueToPrint = quote(valueToPrint);
             }
-            observe(point, type.getTypeName(), valueToPrint);
+
+            String typeName = type.getTypeName();
+            if(value != null && !type.isPrimitive()) {
+                typeName = value.getClass().getTypeName();
+            }
+            observe(point, typeName, valueToPrint);
         }
     }
 
     public static <T> T observeState(String point, Class type, Object value) {
-        // The type is needed for when the value is null at runtime
+        // The type is needed for when the value is null at runtime or it is a primitive type
         observeBasicState(point, type, value);
         if (value == null) {
             return null;
