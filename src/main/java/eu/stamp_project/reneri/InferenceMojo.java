@@ -1,6 +1,11 @@
 package eu.stamp_project.reneri;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonSerializer;
 import eu.stamp_project.reneri.inference.*;
+import eu.stamp_project.reneri.instrumentation.PointcutLocator;
+import eu.stamp_project.reneri.instrumentation.Trie;
 import eu.stamp_project.reneri.observations.InvalidObservationFileException;
 import eu.stamp_project.reneri.observations.ObservationCollection;
 import eu.stamp_project.reneri.observations.PointObservationCollection;
@@ -10,12 +15,17 @@ import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
+import spoon.MavenLauncher;
+import spoon.reflect.cu.SourcePosition;
 
 import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 //TODO: Refactor with the other Mojo
 //TODO: Check that the files are in position
-//TODO: Locate the pointcuts in the source code
 @Mojo(name = "infer")
 public class InferenceMojo extends AbstractMojo {
 
@@ -33,17 +43,50 @@ public class InferenceMojo extends AbstractMojo {
     @Parameter(property = "ouputFolder", defaultValue = "${project.build.directory}/reneri")
     private File outputFolder;
 
+
+    private Trie<SourcePosition> pointCutLocations;
+
+    protected void locatePointCuts() {
+        getLog().info("Locating pointcuts in the test code");
+        MavenLauncher launcher = new MavenLauncher(project.getBasedir().getAbsolutePath(), MavenLauncher.SOURCE_TYPE.TEST_SOURCE);
+        PointcutLocator processor = new PointcutLocator();
+        launcher.buildModel();
+        launcher.addProcessor(processor);
+        launcher.process();
+        pointCutLocations = processor.getLocations();
+    }
+
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         try {
 
+            locatePointCuts();
+
             ObservationCollection originalObservations = new ObservationCollection(outputFolder.toPath().resolve("original"));
+
+            Gson gson = new GsonBuilder()
+                    .registerTypeAdapter(ConditionMismatch.class, ConditionMismatch.getSerializer())
+                    .setPrettyPrinting()
+                    .create();
+
+
             for (File file : outputFolder.listFiles()) {
                 if (!file.isDirectory() || file.getName().equals("original")) {
                     continue;
                 }
                 getLog().info("Checking folder: " + file.getName());
-                inferAndMatch(originalObservations, new ObservationCollection(file.toPath()));
+                List<ConditionMismatch> mismatches = inferAndMatch(originalObservations, new ObservationCollection(file.toPath()));
+
+                try {
+                    //TODO: Parameter for the file name?
+                    FileWriter writer = new FileWriter(file.toPath().resolve("hints.json").toFile());
+                    gson.toJson(mismatches, writer);
+                    writer.close();
+                }
+                catch (IOException exc) {
+                    throw new MojoExecutionException("Could not create file to write the hints", exc);
+                }
+
             }
         }
         catch (InvalidObservationFileException exc) {
@@ -51,7 +94,10 @@ public class InferenceMojo extends AbstractMojo {
         }
     }
 
-    protected void inferAndMatch(ObservationCollection original, ObservationCollection mutated) {
+    protected List<ConditionMismatch> inferAndMatch(ObservationCollection original, ObservationCollection mutated) {
+
+        List<ConditionMismatch> mismatches = new ArrayList<>();
+
         Inferrer inferrer = getInferrer();
         for(String point :  mutated.getObservedPoints()) {
             if(!original.has(point)) {
@@ -64,12 +110,13 @@ public class InferenceMojo extends AbstractMojo {
             PointObservationCollection mutatedPoint = mutated.get(point);
 
             for(Condition condition : inferrer.infer(originalPoint)) {
-
                 if(!condition.appliesTo(mutatedPoint)) {
+                    mismatches.add(new ConditionMismatch(point, condition, pointCutLocations.getClosestMatch(point)));
                     getLog().info(String.format("Condition %s does not apply to mutated point %s", condition.getClass().getTypeName(), point));
                 }
             }
         }
+        return mismatches;
     }
 
     public Inferrer getInferrer() {
