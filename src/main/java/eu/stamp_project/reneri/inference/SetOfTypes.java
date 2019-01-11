@@ -1,22 +1,21 @@
 package eu.stamp_project.reneri.inference;
 
-
 import eu.stamp_project.reneri.observations.AtomicValueObservation;
 
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
-public class SetOfValues extends AtomicValueCondition {
+public class SetOfTypes extends AtomicValueCondition {
 
-    private Set<?> values;
+    private Set<Class<?>> types;
 
-    public SetOfValues(Collection<?> values) {
-        this.values = new HashSet<>(values);
+    public SetOfTypes(Collection<Class<?>> types) {
+        this.types = new HashSet<>(types);
     }
 
     @Override
     public boolean holdsFor(AtomicValueObservation observation) {
-        return values.contains(observation.getValue());
+        return types.contains(observation.getObservedType());
     }
 }

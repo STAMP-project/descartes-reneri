@@ -4,6 +4,7 @@ import eu.stamp_project.reneri.observations.AtomicValueObservation;
 import eu.stamp_project.reneri.observations.PointObservationCollection;
 
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class ExactValuesConditionInferrer implements Inferrer {
@@ -35,20 +36,29 @@ public class ExactValuesConditionInferrer implements Inferrer {
                 ;
 
         Set values = observations.stream()
+                .filter(obs -> !obs.isNull())
                 .map(AtomicValueObservation::getValue)
                 .collect(Collectors.toSet())
                 ;
 
-        Set<Class<?>> types = observations.stream()
-                .map(AtomicValueObservation::getObservedType)
-                .collect(Collectors.toSet())
-                ;
 
-        if(values.isEmpty()) {
-            return Collections.emptyList();
+        //TODO: SetOfTypes seems to be broken
+//        Set<Class<?>> types = observations.stream()
+//                .map(AtomicValueObservation::getObservedType)
+//                .collect(Collectors.toSet())
+//                ;
+
+        ArrayList<Condition> result = new ArrayList<>(2);
+
+        if(!values.isEmpty()) {
+            result.add(new SetOfValues(values));
         }
 
-        return Collections.singletonList(new SetOfValues(values, types));
+//        if(!types.isEmpty()) {
+//            result.add(new SetOfTypes(types));
+//        }
+
+        return result;
     }
 
 
