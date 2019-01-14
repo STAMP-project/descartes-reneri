@@ -60,11 +60,12 @@ public abstract class ExpressionProcessor extends AbstractProcessor<CtExpression
 
     private boolean isDubiousGenericitResolution(CtTypeReference reference) {
 
-        // TODO: Turns out that Spoon is not getting generic types very well.
-        // The type I'm getting is SomeType<Object> while it should be SomeType<String>
-        // therefore, if we get an expression where the type argument is object
-        // it could be a bad inference so we skip them.
-        // This leaves out a number of expressions but at least ensures that the instrumented code will compile.
+        /* TODO: Turns out that Spoon is not getting generic types very well.
+        The type I'm getting is SomeType<Object> while it should be SomeType<String>
+        therefore, if we get an expression where the type argument is object
+        it could be a bad inference so we skip them.
+        This leaves out a number of expressions but at least ensures that the instrumented code will compile.
+        */
         List<CtTypeReference<?>> arguments = reference.getActualTypeArguments();
         CtTypeReference<?> OBJECT = getFactory().Type().OBJECT;
         return arguments.stream().anyMatch(arg -> arg.equals(OBJECT));
@@ -77,11 +78,12 @@ public abstract class ExpressionProcessor extends AbstractProcessor<CtExpression
 
         // Assignments
         if(parent instanceof CtAssignment || parent instanceof  CtUnaryOperator) {
-            // An assignment is an expression
-            // and so it is the left side
-            // processing the left part leads to compile errors.
-            // We process the assignment as a whole.
-            // Could have been done using CtRole.
+            /*
+            An assignment is an expression and so it is the left side.
+            Processing the left part leads to compile errors.
+            We process the assignment as a whole.
+            Could have been done using CtRole.
+            */
 
             // There is no need to observe a subexpression of unary operators.
             return false;
@@ -122,15 +124,12 @@ public abstract class ExpressionProcessor extends AbstractProcessor<CtExpression
 
 
     protected CtTypeReference<?> getActualType(CtExpression<?> expression) {
-
         //ARRGHH SPOON!!!
+        /*
+        If the expression has been casted, then return the outermost type used in the cast sequence
+         */
         List<CtTypeReference<?>> casts = expression.getTypeCasts();
-
-        if(casts.isEmpty()) {
-            return expression.getType();
-        }
-
-        return casts.get(0);
+        return (casts.isEmpty())?expression.getType() : casts.get(0);
     }
 
 

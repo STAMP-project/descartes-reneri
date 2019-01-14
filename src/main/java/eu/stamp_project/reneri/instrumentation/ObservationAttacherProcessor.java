@@ -61,10 +61,31 @@ public class ObservationAttacherProcessor extends ExpressionProcessor {
         return getUniqueMethod(typeToMethodName(type));
     }
 
+    private CtTypeReference<?> getTypeForObservationInvocation(CtExpression<?> expression) {
+
+        // For generic substitution we need the wrapper type. Hence the box invocation.
+        CtTypeReference<?> type = getActualType(expression).clone().box();
+        /*
+        Type inference is done correctly for expressions with implicit types.
+        However, for such expressions, for example:
+
+        HashMap<String, String> map = new HashMap<>();
+
+        the reference to the type of the right hand has all parameters as implicit
+        this impacts the PrettyPrinter, which is not context sensitive and does not print the types
+        even when it knows which types are involved.
+        The workaround is to clone the reference and set all parameters as non-implicit.
+        */
+        for(CtTypeReference<?> typeArguments: type.getActualTypeArguments()) {
+            typeArguments.setImplicit(false);
+        }
+        return type;
+    }
+
     private CtExpression<?> createObservation(String point, CtExpression<?> expression) {
         Factory factory = getFactory();
         CtLiteral<String> observationPoint = factory.createLiteral(point);
-        CtTypeReference<?> type = getActualType(expression);
+        CtTypeReference<?> type = getTypeForObservationInvocation(expression);
         Optional<CtMethod<?>> staticObserver = getStaticObserver(type);
 
         if(staticObserver.isPresent()) {
