@@ -2,6 +2,7 @@ package eu.stamp_project.reneri.instrumentation;
 
 import spoon.SpoonException;
 import spoon.processing.AbstractProcessor;
+import spoon.reflect.code.CtBlock;
 import spoon.reflect.declaration.CtAnnotation;
 import spoon.reflect.declaration.CtClass;
 import spoon.reflect.declaration.CtMethod;
@@ -47,6 +48,7 @@ public class ObserverClassProcessor extends AbstractProcessor<CtClass<?>> {
 
     @Override
     public void process(CtClass<?> element) {
+        //TODO: Use the log mechanism instead of printing to the standard ouput
         System.out.println("Processing " + element.getQualifiedName());
         for (CtMethod<?> method : element.getMethods()) {
             turnOffTimeout(method);
@@ -68,7 +70,10 @@ public class ObserverClassProcessor extends AbstractProcessor<CtClass<?>> {
         ObservationAttacherProcessor processor = new ObservationAttacherProcessor(method);
         ProcessingVisitor visitor = new ProcessingVisitor(getFactory());
         visitor.setProcessor(processor);
-        method.getBody().accept(visitor);
+        CtBlock<?> body = method.getBody();
+        if(body != null) {
+            body.accept(visitor);
+        }
         processor.processingDone();
     }
 
