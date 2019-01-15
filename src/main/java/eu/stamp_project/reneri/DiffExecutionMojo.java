@@ -9,11 +9,15 @@ import eu.stamp_project.mutationtest.descartes.codegeneration.MutationClassAdapt
 import eu.stamp_project.reneri.instrumentation.ObserverClassProcessor;
 import eu.stamp_project.reneri.instrumentation.StateObserver;
 import org.apache.maven.artifact.DependencyResolutionRequiredException;
-import org.apache.maven.plugin.AbstractMojo;
-import org.apache.maven.plugin.MojoExecutionException;
-import org.apache.maven.plugin.MojoFailureException;
+import org.apache.maven.execution.MavenSession;
+import org.apache.maven.model.Plugin;
+import org.apache.maven.plugin.*;
+import org.apache.maven.plugin.version.PluginVersionResolutionException;
+import org.apache.maven.plugin.version.PluginVersionResolver;
 import org.apache.maven.plugins.annotations.*;
+import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.project.MavenProject;
+import org.codehaus.plexus.util.xml.Xpp3Dom;
 import org.pitest.classinfo.ClassName;
 import org.pitest.mutationtest.engine.Location;
 import org.pitest.mutationtest.engine.MethodName;
@@ -24,12 +28,17 @@ import spoon.MavenLauncher;
 import spoon.reflect.CtModel;
 import spoon.reflect.declaration.CtClass;
 
-import javax.tools.*;
-import java.io.*;
-import java.nio.file.*;
-import java.nio.file.attribute.BasicFileAttributes;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import static org.twdata.maven.mojoexecutor.MojoExecutor.*;
 
 @Mojo(name = "diff", requiresDependencyResolution = ResolutionScope.TEST)
 @Execute(phase = LifecyclePhase.COMPILE)
@@ -45,6 +54,18 @@ public class DiffExecutionMojo extends AbstractMojo {
     public void setProject(MavenProject project) {
         this.project = project;
     }
+
+    @Parameter(defaultValue = "${session}", readonly = true)
+    private MavenSession mavenSession;
+
+    @Component
+    private BuildPluginManager pluginManager;
+
+    @Component
+    private MavenPluginManager mavenPluginManager;
+
+    @Component
+    private PluginVersionResolver versionResolver;
 
     @Parameter(property = "ouputFolder", defaultValue = "${project.build.directory}/reneri")
     private File outputFolder;
@@ -91,77 +112,102 @@ public class DiffExecutionMojo extends AbstractMojo {
     }
 
     @Parameter(property = "stackTraces", defaultValue = "${project.build.directory}/stack-traces.json")
-    private File stackTraces;
+    private File stackTracesFile;
 
-    public File getStackTraces() {
-        return stackTraces;
+    public File getStackTracesFile() {
+        return stackTracesFile;
     }
 
-    public void setStackTraces(File stackTraces) {
-        this.stackTraces = stackTraces;
+    public void setStackTracesFile(File stackTraces) {
+        this.stackTracesFile = stackTraces;
     }
 
-    private MethodTracesEntry[] methodTraces;
 
-    private Set<CtClass<?>> testClasses;
+    private Set<CtClass<?>> instrumentedTestClasses;
 
     private InheritanceGraph graph;
+
+    private MethodTracesEntry[] methodStackTraces;
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         try {
 
-            getLog().info("Cleaning previous results");
-            createEmptyDirectory(outputFolder.toPath());
+            cleanEnvironment();
 
-            getLog().info("Instrumenting test classes");
+            instrumentTestClasses();
 
-            testClasses = instrumentTestClasses();
-            if(testClasses.isEmpty()) {
-                getLog().warn("Stopping analysis as no test class was found");
+            if(noClassWasInstrumented()) {
+                getLog().info("Stopping analysis as no test class was found or instrumented");
                 return;
             }
 
-            getLog().info("Compiling instrumented test classes");
-            compileInstrumentedTests();
+            compileInstrumentedTestClasses();
 
+            loadStackTraces();
 
-            getLog().info("Loading stack traces");
-            methodTraces = loadMethodTraces();
+            observeOriginalValues();
 
-            getLog().info("Executing test classes to observe original values");
-            executeTests(getFolderPath("original"));
-
-            getLog().info("Executing mutation analysis");
-            doMutationAnalysis();
+            observeTransformations();
         }
         catch (Throwable exc) {
             throw new MojoExecutionException("Process failed", exc);
         }
     }
 
+    private void cleanEnvironment() throws MojoExecutionException {
+        getLog().info("Cleaning previous results");
+        try {
+            FileUtils.createEmptyDirectory(outputFolder.toPath());
+        }
+        catch(IOException exc) {
+            throw new MojoExecutionException("Clould not clean output folder", exc);
+        }
+    }
+
+    private boolean noClassWasInstrumented() {
+        return instrumentedTestClasses == null || instrumentedTestClasses.isEmpty();
+    }
+
+    private void instrumentTestClasses() throws MojoExecutionException {
+
+        getLog().info("Instrumenting test classes");
+
+        Path testSourceOutputPath = getGeneratedTestsPath();
+        try {
+            FileUtils.createEmptyDirectory(testSourceOutputPath);
+        }
+        catch(IOException exc) {
+            throw new MojoExecutionException("Could not create folder for instrumented tests", exc);
+        }
+
+        instrumentedTestClasses = instrumentTestClasses(testSourceOutputPath.toString());
+
+        try {
+            FileUtils.copyDirectory(Paths.get(project.getBuild().getTestSourceDirectory()), testSourceOutputPath);
+        }
+        catch (IOException exc) {
+            throw new MojoExecutionException("An error occurred while copying original test sources", exc);
+        }
+    }
+
+
     private Path getGeneratedTestsPath() {
         return Paths.get(project.getBuild().getTestOutputDirectory()).getParent().resolve("reneri-generated").toAbsolutePath();
     }
 
-    private Set<CtClass<?>> instrumentTestClasses() throws MojoExecutionException {
-
-        Path testSourceOutputPath = getGeneratedTestsPath();
-        // It seems that Spoon messes with the generated-test-sources folder
-        createEmptyDirectory(testSourceOutputPath);
-
+    private Set<CtClass<?>> instrumentTestClasses(String folder) {
         MavenLauncher launcher = new MavenLauncher(project.getBasedir().getAbsolutePath(), MavenLauncher.SOURCE_TYPE.ALL_SOURCE);
 
         // Adding the observer to the path so it can be compiled at the same time as the project
         launcher.addInputResource(new ResourceJavaFile("utils/StateObserver.java"));
         CtModel model = launcher.buildModel();
 
-
         Set<CtClass<?>> testClassesFound = TestClassFinder.findTestClasses(model);
 
         graph = new InheritanceGraph(testClassesFound);
 
-        getLog().info("Test classes found: " + testClassesFound.size());
+        getLog().debug("Test classes found: " + testClassesFound.size());
 
         if(getLog().isDebugEnabled()) {
             for(CtClass type : testClassesFound) {
@@ -174,7 +220,7 @@ public class DiffExecutionMojo extends AbstractMojo {
 
         getLog().debug("Saving instrumented classes");
 
-        launcher.setSourceOutputDirectory(testSourceOutputPath.toString());
+        launcher.setSourceOutputDirectory(folder);
 
         CtClass<?> observerClass = (CtClass<?>)model.getRootPackage().getFactory().Type().get(StateObserver.class);
 
@@ -188,36 +234,6 @@ public class DiffExecutionMojo extends AbstractMojo {
         return testClassesFound;
     }
 
-    private void createEmptyDirectory(Path root) throws MojoExecutionException {
-        try {
-
-            if(Files.exists(root)) {
-                getLog().debug("Folder " + root.toString() + " already exists. Deleting its content.");
-
-                Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
-
-                    @Override
-                    public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) throws IOException {
-                        Files.delete(file);
-                        return FileVisitResult.CONTINUE;
-                    }
-
-                    @Override
-                    public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-                        Files.delete(dir);
-                        return FileVisitResult.CONTINUE;
-                    }
-
-                });
-            }
-            Files.createDirectories(root);
-
-        }
-        catch(IOException exc) {
-            throw new MojoExecutionException("Could not clear directory " + root.toString(), exc);
-        }
-    }
-
     private List<String> getTestClasspathElements() {
         try {
             return project.getTestClasspathElements();
@@ -228,79 +244,67 @@ public class DiffExecutionMojo extends AbstractMojo {
         }
     }
 
-    private void compileInstrumentedTests() throws MojoExecutionException {
+    private void compileInstrumentedTestClasses() throws MojoExecutionException {
 
-        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+        getLog().info("Compiling instrumented test classes");
 
-        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-        StandardJavaFileManager fileManager = compiler.getStandardFileManager(diagnostics, null, null);
-        Iterable<? extends JavaFileObject> sources = fileManager.getJavaFileObjectsFromStrings(findSourceFiles(getGeneratedTestsPath()));
-
-        String classpath  = getTestClasspathElements().stream().collect(Collectors.joining(System.getProperty("path.separator")));
-
-        getLog().debug("Classpath to compile the instrumented tests");
-        getLog().debug(classpath);
-
-        String compiledTestsFolder = project.getBuild().getTestOutputDirectory();
-        Path compiledTestsPath = Paths.get(compiledTestsFolder);
-
-        createEmptyDirectory(compiledTestsPath);
-
-        List<String> options = Arrays.asList("-cp",  classpath, "-d", compiledTestsFolder);
-
-        JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager, diagnostics, options, null, sources);
-
-        if(!task.call()) {
-            getLog().error("Error while compiling instrumented test classes");
-            for(Diagnostic fact : diagnostics.getDiagnostics()) {
-                getLog().error(String.format("%s in [%s,%s] %s ", fact.getMessage(Locale.ROOT),  fact.getLineNumber(), fact.getColumnNumber(), fact.getSource()));
-            }
-
-            throw new MojoExecutionException("Errors found while compiling the instrumented test classes");
+        MavenPluginResolver resolver = new MavenPluginResolver(project, mavenSession, versionResolver);
+        try {
+            Plugin compiler = resolver.resolve(
+                    "org.apache.maven.plugins",
+                    "maven-compiler-plugin",
+                    "3.8.0",
+                    configuration(
+                            element(name("compileSourceRoots"),
+                                    element("value", getGeneratedTestsPath().toString()))
+                    )
+            );
+            executeMojo(
+                    compiler,
+                    goal("testCompile"),
+                    (Xpp3Dom) compiler.getConfiguration(),
+                    executionEnvironment(project, mavenSession, pluginManager)
+            );
+        }
+        catch(PluginVersionResolutionException exc) {
+            throw new MojoExecutionException("Could not resolve org.apache.maven.plugins:maven-compiler-plugin:3.8.0", exc);
         }
     }
 
-    private  List<MutationIdentifier> loadUndetectedMutations() throws IOException {
-        Gson gson = new Gson();
-        FileReader fileReader = new FileReader(transformations);
-        JsonObject document = gson.fromJson(fileReader, JsonObject.class);
-        JsonArray mutations = document.getAsJsonArray("mutations");
-        List<MutationIdentifier> result = new ArrayList<>(mutations.size()/2);
+    private void loadStackTraces() throws MojoExecutionException {
 
-        mutations.forEach(mutationElement -> {
-            JsonObject mutation = mutationElement.getAsJsonObject();
-            if(!mutation.getAsJsonPrimitive("status").getAsString().equals("SURVIVED")) {
-                return;
-            }
-            JsonObject method = mutation.getAsJsonObject("method");
-            ClassName className = ClassName.fromString(method.getAsJsonPrimitive("package").getAsString() + "." + method.getAsJsonPrimitive("class").getAsString());
-            MethodName methodName = MethodName.fromString(method.getAsJsonPrimitive("name").getAsString());
-            Location location = new Location(className, methodName, method.getAsJsonPrimitive("description").getAsString());
-            MutationIdentifier mID = new MutationIdentifier(location, 0, mutation.getAsJsonPrimitive("mutator").getAsString());
-            result.add(mID);
-        });
-
-        return result;
-    }
-
-    private MethodTracesEntry[] loadMethodTraces() throws MojoExecutionException {
         if(executeAllTests) {
             getLog().debug("All tests are going to be executed against each transformation");
-            return  new MethodTracesEntry[0];
+            methodStackTraces = new MethodTracesEntry[0];
+            return;
         }
 
         Gson gson = new Gson();
-        try(FileReader reader = new FileReader(stackTraces)) {
-            return gson.fromJson(reader, MethodTracesEntry[].class);
+        try(FileReader reader = new FileReader(stackTracesFile)) {
+            methodStackTraces = gson.fromJson(reader, MethodTracesEntry[].class);
 
         }
         catch (Exception exc) {
             throw new MojoExecutionException("An error occurred while loading the stack traces file.", exc);
         }
+
     }
 
-    private Path getClassFilePath(MutationIdentifier mutation) {
-       return  Paths.get(project.getBuild().getOutputDirectory(),  mutation.getClassName().asInternalName() + ".class");
+    private void observeOriginalValues() throws MojoExecutionException {
+        getLog().info("Executing test classes to observe original values");
+
+        try {
+            executeTests(getFolderPath("original"));
+        }
+        catch(IOException exc) {
+            throw new MojoExecutionException("Could not create directory to store original observations", exc);
+        }
+    }
+
+    private Path getFolderPath(String name) throws IOException {
+        Path folderPath = outputFolder.toPath().resolve(name).toAbsolutePath();
+        Files.createDirectories(folderPath);
+        return folderPath;
     }
 
     private void executeTests(Path resultFolder) throws MojoExecutionException {
@@ -342,16 +346,70 @@ public class DiffExecutionMojo extends AbstractMojo {
         }
     }
 
-    private Path getFolderPath(String name) throws IOException {
-        Path folderPath = outputFolder.toPath().resolve(name).toAbsolutePath();
-        Files.createDirectories(folderPath);
-        return folderPath;
+    private void observeTransformations() throws MojoExecutionException {
+        getLog().info("Observing transformation effects");
+
+        try {
+            List<MutationIdentifier> mutations = loadUndetectedMutations();
+
+            getLog().debug(String.format("Found %d undetected transformations", mutations.size()));
+
+            for (int index = 0; index < mutations.size(); index++) {
+
+                getLog().debug("Executing transformation " + index);
+                try {
+                    executeMutation(getFolderPath(Integer.toString(index)), mutations.get(index));
+                }
+                catch (Exception exc) {
+                    getLog().error("Error executing transformation " + index, exc);
+                }
+            }
+        }
+        catch (IOException exc) {
+            throw new MojoExecutionException("Could not read mutation file", exc);
+        }
     }
 
-    private void write(Path path, byte[] content) throws IOException {
-        try(FileOutputStream output = new FileOutputStream(path.toFile())) {
-            output.write(content);
-        }
+    private  List<MutationIdentifier> loadUndetectedMutations() throws IOException {
+        Gson gson = new Gson();
+        FileReader fileReader = new FileReader(transformations);
+        JsonObject document = gson.fromJson(fileReader, JsonObject.class);
+        JsonArray mutations = document.getAsJsonArray("mutations");
+        List<MutationIdentifier> result = new ArrayList<>(mutations.size()/2);
+
+        mutations.forEach(mutationElement -> {
+            JsonObject mutation = mutationElement.getAsJsonObject();
+            if(!mutation.getAsJsonPrimitive("status").getAsString().equals("SURVIVED")) {
+                return;
+            }
+            JsonObject method = mutation.getAsJsonObject("method");
+            ClassName className = ClassName.fromString(method.getAsJsonPrimitive("package").getAsString() + "." + method.getAsJsonPrimitive("class").getAsString());
+            MethodName methodName = MethodName.fromString(method.getAsJsonPrimitive("name").getAsString());
+            Location location = new Location(className, methodName, method.getAsJsonPrimitive("description").getAsString());
+            MutationIdentifier mID = new MutationIdentifier(location, 0, mutation.getAsJsonPrimitive("mutator").getAsString());
+            result.add(mID);
+        });
+
+        return result;
+    }
+
+    private void executeMutation(Path resultFolderPath, MutationIdentifier mutation) throws IOException, MojoExecutionException {
+        // Mutate the source code
+        Path pathToClass = getClassFilePath(mutation);
+        byte[] originalClass = Files.readAllBytes(pathToClass);
+        FileUtils.write(pathToClass, mutate(originalClass, mutation));
+        //Select the tests to execute
+        Set<String> tests = getTestClassesToExecute(mutation);
+        //Save the information
+        saveMutationInfo(resultFolderPath, mutation, tests);
+        // Execute the tests
+        executeTests(resultFolderPath, tests);
+        //Restore the original code
+        FileUtils.write(pathToClass, originalClass);
+    }
+
+    private Path getClassFilePath(MutationIdentifier mutation) {
+        return  Paths.get(project.getBuild().getOutputDirectory(),  mutation.getClassName().asInternalName() + ".class");
     }
 
     private byte[] mutate(byte[] originalClass, MutationIdentifier mutation) {
@@ -369,8 +427,8 @@ public class DiffExecutionMojo extends AbstractMojo {
 
         HashSet<String> result = new HashSet<>();
 
-        for(MethodTracesEntry entry : methodTraces) {
-            Set<String> closestTests = entry.getClosestClassesTo(mutation, testClasses);
+        for(MethodTracesEntry entry : methodStackTraces) {
+            Set<String> closestTests = entry.getClosestClassesTo(mutation, instrumentedTestClasses);
             result.addAll(graph.getInheritanceClousure(closestTests)); // Include derived classes
         }
         return result;
@@ -398,84 +456,79 @@ public class DiffExecutionMojo extends AbstractMojo {
         }
     }
 
-    private void executeMutation(Path resultFolderPath, MutationIdentifier mutation) throws IOException, MojoExecutionException {
-            // Mutate the source code
-            Path pathToClass = getClassFilePath(mutation);
-            byte[] originalClass = Files.readAllBytes(pathToClass);
-            write(pathToClass, mutate(originalClass, mutation));
-            //Select the tests to execute
-            Set<String> tests = getTestClassesToExecute(mutation);
-            //Save the information
-            saveMutationInfo(resultFolderPath, mutation, tests);
-            // Execute the tests
-            executeTests(resultFolderPath, tests);
-            //Restore the original code
-            write(pathToClass, originalClass);
-    }
-
-
-    private void doMutationAnalysis() throws MojoExecutionException {
-        try {
-            List<MutationIdentifier> mutations = loadUndetectedMutations();
-
-            getLog().debug(String.format("Found %d undetected mutations", mutations.size()));
-
-            for (int index = 0; index < mutations.size(); index++) {
-
-                getLog().debug("Executing mutation " + index);
-                try {
-
-
-                    executeMutation(getFolderPath(Integer.toString(index)), mutations.get(index));
-                }
-                catch (Exception exc) {
-                    getLog().error("Error executing mutation " + index, exc);
-                }
-            }
-        }
-        catch(IOException exc) {
-            throw  new MojoExecutionException("Could not read mutation file", exc);
-        }
-    }
-
-
-    private List<String> findSourceFiles(Path rootFolder) {
-        List<String> files = new ArrayList<>();
-
-        try {
-            Files.walkFileTree(rootFolder, new FileVisitor<Path>() {
-                @Override
-                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
-                    return FileVisitResult.CONTINUE;
-                }
-
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-                    if (file.toString().endsWith(".java")) {
-                        files.add(file.toAbsolutePath().toString());
-                    }
-                    return FileVisitResult.CONTINUE;
-                }
-
-                @Override
-                public FileVisitResult visitFileFailed(Path file, IOException exc) {
-                    return FileVisitResult.CONTINUE;
-                }
-
-                @Override
-                public FileVisitResult postVisitDirectory(Path dir, IOException exc) {
-                    return FileVisitResult.CONTINUE;
-                }
-            });
-        }
-        catch (IOException exc) {
-            getLog().error("Error while inspecting source files", exc);
-        }
-
-        return files;
-
-    }
-
-
-
+//
+//    private void compileInstrumentedTests() throws MojoExecutionException {
+//
+//        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+//
+//        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+//        StandardJavaFileManager fileManager = compiler.getStandardFileManager(diagnostics, null, null);
+//        Iterable<? extends JavaFileObject> sources = fileManager.getJavaFileObjectsFromStrings(findSourceFiles(getGeneratedTestsPath()));
+//
+//        String classpath  = getTestClasspathElements().stream().collect(Collectors.joining(System.getProperty("path.separator")));
+//
+//        getLog().debug("Classpath to compile the instrumented tests");
+//        getLog().debug(classpath);
+//
+//        String compiledTestsFolder = project.getBuild().getTestOutputDirectory();
+//        Path compiledTestsPath = Paths.get(compiledTestsFolder);
+//
+//        try {
+//            FileUtils.createEmptyDirectory(compiledTestsPath);
+//        }
+//        catch (IOException exc) {
+//            throw new MojoExecutionException("Could not create folder for compiled tests", exc);
+//        }
+//
+//        List<String> options = Arrays.asList("-cp",  classpath, "-d", compiledTestsFolder);
+//
+//        JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager, diagnostics, options, null, sources);
+//
+//        if(!task.call()) {
+//            getLog().error("Error while compiling instrumented test classes");
+//            for(Diagnostic fact : diagnostics.getDiagnostics()) {
+//                getLog().error(String.format("%s in [%s,%s] %s ", fact.getMessage(Locale.ROOT),  fact.getLineNumber(), fact.getColumnNumber(), fact.getSource()));
+//            }
+//
+//            throw new MojoExecutionException("Errors found while compiling the instrumented test classes");
+//        }
+//
+//    }
+//
+//    private List<String> findSourceFiles(Path rootFolder) {
+//        List<String> files = new ArrayList<>();
+//
+//        try {
+//            Files.walkFileTree(rootFolder, new FileVisitor<Path>() {
+//                @Override
+//                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+//                    return FileVisitResult.CONTINUE;
+//                }
+//
+//                @Override
+//                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+//                    if (file.toString().endsWith(".java")) {
+//                        files.add(file.toAbsolutePath().toString());
+//                    }
+//                    return FileVisitResult.CONTINUE;
+//                }
+//
+//                @Override
+//                public FileVisitResult visitFileFailed(Path file, IOException exc) {
+//                    return FileVisitResult.CONTINUE;
+//                }
+//
+//                @Override
+//                public FileVisitResult postVisitDirectory(Path dir, IOException exc) {
+//                    return FileVisitResult.CONTINUE;
+//                }
+//            });
+//        }
+//        catch (IOException exc) {
+//            getLog().error("Error while inspecting source files", exc);
+//        }
+//
+//        return files;
+//
+//    }
 }
