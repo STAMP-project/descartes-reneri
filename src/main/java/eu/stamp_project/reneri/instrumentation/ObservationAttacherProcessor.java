@@ -52,19 +52,14 @@ public class ObservationAttacherProcessor extends ExpressionProcessor {
         return Optional.of(methods.get(0));
     }
 
+    private CtMethod<?> getStaticObserver(CtTypeReference<?> type) {
+        return observerClass.getMethod(type, "observe", getFactory().Type().STRING, type);
 
-    private String typeToMethodName(CtTypeReference<?> type) {
-        return "observe_" + type.getQualifiedName().replace('.', '_');
-    }
-
-    private Optional<CtMethod<?>> getStaticObserver(CtTypeReference<?> type) {
-        return getUniqueMethod(typeToMethodName(type));
     }
 
     private CtTypeReference<?> getTypeForObservationInvocation(CtExpression<?> expression) {
 
-        // For generic substitution we need the wrapper type. Hence the box invocation.
-        CtTypeReference<?> type = getActualType(expression).clone().box();
+        CtTypeReference<?> type = getActualType(expression).clone();
         /*
         Type inference is done correctly for expressions with implicit types.
         However, for such expressions, for example:
@@ -86,10 +81,11 @@ public class ObservationAttacherProcessor extends ExpressionProcessor {
         Factory factory = getFactory();
         CtLiteral<String> observationPoint = factory.createLiteral(point);
         CtTypeReference<?> type = getTypeForObservationInvocation(expression);
-        Optional<CtMethod<?>> staticObserver = getStaticObserver(type);
+        CtMethod<?> staticObserver = getStaticObserver(type);
 
-        if(staticObserver.isPresent()) {
-            return factory.createInvocation(observerClassAccess, staticObserver.get().getReference(), observationPoint, expression.clone());
+        // Wrappers and primitive values are handled by static observers
+        if(staticObserver != null) {
+            return factory.createInvocation(observerClassAccess, staticObserver.getReference(), observationPoint, expression.clone());
         }
 
         CtInvocation<?> result = factory.createInvocation(
@@ -99,8 +95,8 @@ public class ObservationAttacherProcessor extends ExpressionProcessor {
                 factory.createClassAccess(type),
                 expression.clone()
         );
-
         result.addActualTypeArgument(type);
+
         return result;
     }
 
