@@ -142,6 +142,7 @@ public class StateObserver {
     public static void observeAtomic(String point, Class<?> type, Object value) {
         if(value instanceof String) {
             observe(point, (String)value);
+            return;
         }
         else {
             String valueToPrint = (value == null)?"null":value.toString();
@@ -237,89 +238,82 @@ public class StateObserver {
         }
     }
 
-    private static void observe(String point, int value) {
-        observe(point, "int", Integer.toString(value));
-    }
+    // Static observers, they will be resolved by the attacher
 
-    private static void observe(String point, String value) {
+    public static String observe(String point, String value) {
         observe(point, "java.lang.String", (value == null)? "null": quote(value));
+        return value;
     }
 
+    public static int observe(String point, int value) {
+        observe(point, "int", Integer.toString(value));
+        return value;
+    }
 
-//    public static boolean observe_boolean(String point, boolean b) {
-//        observe(point, "boolean", Boolean.toString(b));
-//        return b;
-//    }
-//
-//    public static Boolean observe_java_lang_Boolean(String point, Boolean b) {
-//        observe(point, "java.lang.Integer", (b==null)?"null":b.toString());
-//        return b;
-//    }
-//
-//    public static byte observe_byte(String point, byte b) {
-//        observe(point, "byte", Byte.toString(b));
-//        return b;
-//    }
-//
-//    public static Byte observe_java_lang_Byte(String point, Byte b) {
-//        observe(point, "java.lang.Byte", (b==null)?"null":b.toString());
-//        return b;
-//    }
-//
-//    public static short observe_short(String point, short s) {
-//        observe(point, "short", Short.toString(s));
-//        return s;
-//    }
-//
-//    public static Short observe_java_lang_Short(String point, Short s) {
-//        observe(point, "java.lang.Short", (s==null)?"null":s.toString());
-//        return s;
-//    }
+    public static Integer observe(String point, Integer value) {
+        observe(point, "java.lang.Integer", (value==null)?"null":value.toString());
+        return value;
+    }
 
-//    public static int observe_int(String point, int i) {
-//        observe(point, "int", Integer.toString(i));
-//        return i;
-//    }
+    public static boolean observe(String point, boolean value) {
+        observe(point, "boolean", Boolean.toString(value));
+        return value;
+    }
 
-//    public static Integer observe_java_lang_Integer(String point, Integer i) {
-//        observe(point, "java.lang.Integer", (i==null)?"null":i.toString());
-//        return i;
-//    }
-//
-//    public static long observe_long(String point, long l) {
-//        observe(point, "long", Long.toString(l));
-//        return l;
-//    }
-//
-//    public static Long observe_java_lang_Long(String point, Long l) {
-//        observe(point, "java.lang.Long", (l==null)?"null":l.toString());
-//        return l;
-//    }
+    public static Boolean observe(String point, Boolean value) {
+        observe(point, "java.lang.Boolean", Boolean.toString(value));
+        return value;
+    }
 
-//    public static String observe_java_lang_String(String point, String s) {
-//        observe(point, "java.lang.String", (s == null)? "null": quote(s));
-//        return s;
-//    }
+    public static byte observe(String point, byte value) {
+        observe(point, "byte", Byte.toString(value));
+        return value;
+    }
 
-//    public static double observe_double(String point, double d) {
-//        observe(point, "double", format.format(d));
-//        return d;
-//    }
-//
-//    public static Double observe_java_lang_Double(String point, Double d) {
-//        observe(point, "java.lang.Double", (d==null)?"null":format.format(d));
-//        return d;
-//    }
-//
-//    public static char observe_char(String point, char c) {
-//        observe(point, "char", quote(Character.toString(c)));
-//        return c;
-//    }
-//
-//    public static Character observe_java_lang_Character(String point, Character c) {
-//        observe(point, "char", (c==null)?"null":quote(c.toString()));
-//        return c;
-//    }
+    public static Byte observe(String point, Byte value) {
+        observe(point, "java.lang.Byte", (value==null)?"null":value.toString());
+        return value;
+    }
+
+    public static short observe(String point, short value) {
+        observe(point, "short", Short.toString(value));
+        return value;
+    }
+
+    public static Short observe(String point, Short value) {
+        observe(point, "java.lang.Short", (value==null)?"null":value.toString());
+        return value;
+    }
+
+    public static long observe(String point, long value) {
+        observe(point, "long", Long.toString(value));
+        return value;
+    }
+
+    public static Long observe(String point, Long value) {
+        observe(point, "java.lang.Long", (value==null)?"null":value.toString());
+        return value;
+    }
+
+    public static double observe(String point, double value) {
+        observe(point, "double", format.format(value));
+        return value;
+    }
+
+    public static Double observe(String point, Double value) {
+        observe(point, "java.lang.Double", (value==null)?"null":format.format(value));
+        return value;
+    }
+
+    public static char observe(String point, char value) {
+        observe(point, "char", quote(Character.toString(value)));
+        return value;
+    }
+
+    public static Character observe(String point, Character value) {
+        observe(point, "java.lang.Character", (value==null)?"null":quote(value.toString()));
+        return value;
+    }
 
     public static String escape(String value) {
         StringWriter result = new StringWriter(value.length());
