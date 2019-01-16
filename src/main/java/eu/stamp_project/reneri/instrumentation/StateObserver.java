@@ -6,6 +6,7 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.nio.file.Paths;
 import java.text.NumberFormat;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -71,23 +72,31 @@ public class StateObserver {
 
     protected static void initialize() {
         try {
-
             String folder = System.getProperty("stamp.reneri.folder");
-
             if(folder == null)  {
                 folder = ".";
             }
-
-            final String fullPath = String.format("%s/%s.jsonl", folder, System.currentTimeMillis());
-            File file = new File(fullPath);
+            File file = Paths.get(folder, "observations.jsonl").toFile();
             if(file.getParentFile() != null) {
                 file.getParentFile().mkdirs();
             }
-            file.createNewFile();
+            if(!file.exists()) {
+                file.createNewFile();
+            }
             output = new FileWriter(file);
-            Runtime.getRuntime().addShutdownHook(new Thread() {
+//
+//
+//            final String fullPath = String.format("%s/%s.jsonl", folder, System.currentTimeMillis());
+//            File file = new File(fullPath);
+//            if(file.getParentFile() != null) {
+//                file.getParentFile().mkdirs();
+//            }
+//            file.createNewFile();
+            ///This might produce deadlocks and anyways we are flushing
+            output = new FileWriter(file);
+            /*Runtime.getRuntime().addShutdownHook(new Thread() {
                 public void run () { try {output.close();} catch(Exception exc){}}
-            });
+            });*/
         }
         catch (IOException exc){
             throw new RuntimeException("Could not create the observation file", exc);

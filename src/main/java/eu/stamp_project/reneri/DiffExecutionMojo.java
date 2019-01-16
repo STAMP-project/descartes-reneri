@@ -129,9 +129,13 @@ public class DiffExecutionMojo extends AbstractMojo {
 
     private MethodTracesEntry[] methodStackTraces;
 
+    private MavenPluginResolver pluginResolver;
+
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         try {
+
+            setUp();
 
             cleanEnvironment();
 
@@ -163,6 +167,10 @@ public class DiffExecutionMojo extends AbstractMojo {
         catch(IOException exc) {
             throw new MojoExecutionException("Clould not clean output folder", exc);
         }
+    }
+
+    private void setUp() {
+        pluginResolver = new MavenPluginResolver(project, mavenSession, versionResolver);
     }
 
     private boolean noClassWasInstrumented() {
@@ -248,9 +256,9 @@ public class DiffExecutionMojo extends AbstractMojo {
 
         getLog().info("Compiling instrumented test classes");
 
-        MavenPluginResolver resolver = new MavenPluginResolver(project, mavenSession, versionResolver);
+
         try {
-            Plugin compiler = resolver.resolve(
+            Plugin compiler = pluginResolver.resolve(
                     "org.apache.maven.plugins",
                     "maven-compiler-plugin",
                     "3.8.0",
@@ -296,6 +304,7 @@ public class DiffExecutionMojo extends AbstractMojo {
         getLog().info("Executing test classes to observe original values");
 
         try {
+            //TODO: Transformations could be loaded before and determine the tests that should be executed
             executeTests(getFolderPath("original"));
         }
         catch(IOException exc) {
@@ -315,7 +324,37 @@ public class DiffExecutionMojo extends AbstractMojo {
 
     private void executeTests(Path resultFolder, Set<String> classes)  throws MojoExecutionException {
 
+        for(int iteration = 0; iteration < testTimes; iteration++) {
+            getLog().info("Executing tests");
+            String testsToRun = classes.stream().collect(Collectors.joining(", "));
+            getLog().debug("Test classes to execute: " + testsToRun);
 
+            try {
+                Path executionOutputFolder = resultFolder.resolve(Long.toString(System.currentTimeMillis()));
+
+                mavenSession.getUserProperties().setProperty("stamp.reneri.folder", executionOutputFolder.toAbsolutePath().toString());
+
+                Plugin surefire = pluginResolver.resolve(
+                        "org.apache.maven.plugins",
+                        "maven-surefire-plugin",
+                        "2.19",
+                        configuration(
+                                element("reportsDirectory", executionOutputFolder.resolve("surefire-reports").toAbsolutePath().toString()),
+                                element("redirectTestOutputToFile", "true"),
+                                element("test", testsToRun)
+                        )
+                );
+                executeMojo(surefire, goal("test"),
+                        (Xpp3Dom) surefire.getConfiguration(),
+                        executionEnvironment(project, mavenSession, pluginManager));
+            } catch (MojoExecutionException exc) {
+                getLog().warn("Issues while executing the tests ", exc);
+            } catch (PluginVersionResolutionException exc) {
+                throw new MojoExecutionException("Could not find org.apache.maven.plugins:maven-surefire-plugin:2.19", exc);
+            }
+        }
+
+        /*
         List<String> command = new ArrayList<>(Arrays.asList("mvn", "surefire:test", String.format("\"-Dstamp.reneri.folder=%s\"", resultFolder.toAbsolutePath().toString())));
 
         if(!classes.isEmpty()) {
@@ -345,7 +384,8 @@ public class DiffExecutionMojo extends AbstractMojo {
                     testProcess.destroyForcibly();
                 }
             }
-        }
+        }*/
+
     }
 
     private void observeTransformations() throws MojoExecutionException {
