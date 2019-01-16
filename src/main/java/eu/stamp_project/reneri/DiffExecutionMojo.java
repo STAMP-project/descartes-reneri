@@ -256,7 +256,9 @@ public class DiffExecutionMojo extends AbstractMojo {
                     "3.8.0",
                     configuration(
                             element(name("compileSourceRoots"),
-                                    element("value", getGeneratedTestsPath().toString()))
+                                    element("value", getGeneratedTestsPath().toString())),
+                            element("testSource", "1.8"),
+                            element("testTarget", "1.8")
                     )
             );
             executeMojo(
