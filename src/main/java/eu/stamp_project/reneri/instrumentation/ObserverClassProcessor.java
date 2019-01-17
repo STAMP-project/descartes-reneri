@@ -30,8 +30,6 @@ public class ObserverClassProcessor extends AbstractProcessor<CtClass<?>> {
     @Override
     public boolean isToBeProcessed(CtClass<?> element) {
 
-        System.out.println("Checking " + element.getQualifiedName());
-
         if(element.getQualifiedName().startsWith(OWN_PACKAGE)) {
             // Preventing self analysis
             return false;
@@ -52,8 +50,7 @@ public class ObserverClassProcessor extends AbstractProcessor<CtClass<?>> {
         System.out.println("Processing " + element.getQualifiedName());
         for (CtMethod<?> method : element.getMethods()) {
             turnOffTimeout(method);
-            ObservationAttacherProcessor.process(method);
-            //insertObservationPoints(method);
+            ObservationAttacherProcessor.processMethod(method);
         }
     }
 
@@ -68,13 +65,14 @@ public class ObserverClassProcessor extends AbstractProcessor<CtClass<?>> {
     }
 
     protected void insertObservationPoints(CtMethod<?> method) {
+        CtBlock<?> body = method.getBody();
+        if (body == null) {
+            return;
+        }
         ObservationAttacherProcessor processor = new ObservationAttacherProcessor(method);
         ProcessingVisitor visitor = new ProcessingVisitor(getFactory());
         visitor.setProcessor(processor);
-        CtBlock<?> body = method.getBody();
-        if(body != null) {
-            body.accept(visitor);
-        }
+        body.accept(visitor);
         processor.processingDone();
     }
 

@@ -8,7 +8,6 @@ import spoon.reflect.factory.TypeFactory;
 import spoon.reflect.reference.CtTypeReference;
 import spoon.support.visitor.ProcessingVisitor;
 
-import javax.swing.text.html.Option;
 import java.util.*;
 
 
@@ -117,9 +116,7 @@ public class ObservationAttacherProcessor extends ExpressionProcessor {
         if(!expectedException.isPresent()) {
             return;
         }
-        System.out.println("Attaching exception observation");
         observeException(method, expectedException.get());
-        System.out.println("Exception observation attached");
     }
 
     private Optional<CtTypeReference<?>> getExpectedException(CtMethod<?> method) {
@@ -163,14 +160,25 @@ public class ObservationAttacherProcessor extends ExpressionProcessor {
         method.setBody(factory.createTry().addCatcher(catchBlock).setBody(method.getBody()));
     }
 
-    public static void process(CtMethod<?> method) {
+    /*
+    So, the name of the method below is processMethod when process could have been a shorter nicer name.
+    The point is that it can not be process. The reason goes back to the way Spoon deals with genericity
+    in the AbstractProcessor class. In order to have access at runtime, the constructor of this class
+    searches for all methods named, guess how, process that have only one parameter and stores the type
+    of this parameter. Then, ProcessingVisitor uses the stored types to know which elements to process.
+    An element can be processed if its type can be assigned to all the types stored by the Processor.
+    In this case, we had process(CtExpression) and process(CtMethod) and there is no class that could be
+    assigned to both, so no element was processed. ARRGGGGGHHHH Spoon!!!
+     */
+    public static void processMethod(CtMethod<?> method) {
+        CtBlock<?> body = method.getBody();
+        if (body == null) {
+            return;
+        }
         ObservationAttacherProcessor processor = new ObservationAttacherProcessor(method);
         ProcessingVisitor visitor = new ProcessingVisitor(method.getFactory());
         visitor.setProcessor(processor);
-        CtBlock<?> body = method.getBody();
-        if(body != null) {
-            body.accept(visitor);
-        }
+        body.accept(visitor);
         processor.processingDone();
     }
 
