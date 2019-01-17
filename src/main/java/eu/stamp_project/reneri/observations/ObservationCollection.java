@@ -38,10 +38,10 @@ public class ObservationCollection {
                 addGroups(loadGroupedObservations(file));
             }
             catch(IOException exc) {
-                throw new InvalidObservationFileException("Error while reading the file", file.getName(), exc);
+                throw new InvalidObservationFileException("Error while reading the file", file.getAbsolutePath(), exc);
             }
             catch (InvalidObservationException exc) {
-                throw new InvalidObservationFileException("Invalid observation record", file.getName(), exc);
+                throw new InvalidObservationFileException("Invalid observation record", file.getAbsolutePath(), exc);
             }
         }
     }
