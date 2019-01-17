@@ -16,6 +16,8 @@ import java.util.stream.Stream;
 
 public abstract class ExpressionProcessor extends AbstractProcessor<CtExpression<?>> {
 
+
+
     //private CtMethod<?> targetMethod;
 
     private int expressionCounter = 0;
@@ -24,14 +26,22 @@ public abstract class ExpressionProcessor extends AbstractProcessor<CtExpression
 
     private String baseObservationPoint;
 
+    private CtMethod<?> method;
+
     public ExpressionProcessor(CtMethod<?> method) {
-        setBaseObservationPoint(method);
+
+        this.method = method;
+        baseObservationPoint = String.format("%s|%s", method.getDeclaringType().getQualifiedName(), method.getSignature());
         setFactory(method.getFactory());
         setTypesToAvoid();
     }
 
-    private void setBaseObservationPoint(CtMethod<?> method) {
-        baseObservationPoint = String.format("%s|%s", method.getDeclaringType().getQualifiedName(), method.getSignature());
+    protected String getBaseObservationPoint() {
+        return baseObservationPoint;
+    }
+
+    protected CtMethod<?> getMethod() {
+        return method;
     }
 
     private void setTypesToAvoid() {

@@ -52,7 +52,8 @@ public class ObserverClassProcessor extends AbstractProcessor<CtClass<?>> {
         System.out.println("Processing " + element.getQualifiedName());
         for (CtMethod<?> method : element.getMethods()) {
             turnOffTimeout(method);
-            insertObservationPoints(method);
+            ObservationAttacherProcessor.process(method);
+            //insertObservationPoints(method);
         }
     }
 

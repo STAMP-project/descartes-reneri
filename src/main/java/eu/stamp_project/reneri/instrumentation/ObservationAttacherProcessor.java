@@ -1,13 +1,14 @@
 package eu.stamp_project.reneri.instrumentation;
 
-import spoon.reflect.code.CtExpression;
-import spoon.reflect.code.CtInvocation;
-import spoon.reflect.code.CtLiteral;
-import spoon.reflect.code.CtTypeAccess;
+import eu.stamp_project.reneri.TestClassFinder;
+import spoon.reflect.code.*;
 import spoon.reflect.declaration.*;
 import spoon.reflect.factory.Factory;
+import spoon.reflect.factory.TypeFactory;
 import spoon.reflect.reference.CtTypeReference;
+import spoon.support.visitor.ProcessingVisitor;
 
+import javax.swing.text.html.Option;
 import java.util.*;
 
 
@@ -104,4 +105,73 @@ public class ObservationAttacherProcessor extends ExpressionProcessor {
     protected void processExpression(String point, CtExpression<?> expression) {
        expression.replace(createObservation(point, expression));
     }
+
+    @Override
+    public void processingDone() {
+        attachExceptionObservation();
+    }
+
+    private void attachExceptionObservation() {
+        CtMethod<?> method = getMethod();
+        Optional<CtTypeReference<?>> expectedException = getExpectedException(method);
+        if(!expectedException.isPresent()) {
+            return;
+        }
+        System.out.println("Attaching exception observation");
+        observeException(method, expectedException.get());
+        System.out.println("Exception observation attached");
+    }
+
+    private Optional<CtTypeReference<?>> getExpectedException(CtMethod<?> method) {
+        Optional<CtAnnotation<?>> annotation = TestClassFinder.getAnnotation(method, "org.junit.Test");
+        if(!annotation.isPresent()) {
+            return Optional.empty();
+        }
+        Map<String, CtExpression> values = annotation.get().getValues();
+        CtExpression expectedExpression = values.getOrDefault("expected", null);
+        if(expectedExpression == null) {
+            return Optional.empty();
+        }
+        if(!(expectedExpression instanceof CtFieldRead)) {
+            return Optional.empty();
+        }
+        CtFieldRead fieldRead = (CtFieldRead)expectedExpression;
+        if(!(fieldRead.getVariable().getSimpleName().equals("class") && fieldRead.getTarget() instanceof CtTypeAccess)) {
+            return Optional.empty();
+        }
+        return Optional.of(((CtTypeAccess)fieldRead.getTarget()).getAccessedType());
+    }
+
+    private void observeException(CtMethod<?> method, CtTypeReference<?> exceptionType) {
+        Factory factory = getFactory();
+        CtMethod<?> observeExceptionMethod = getUniqueMethod("observeThrownException").get();
+        CtCatchVariable catchVariable = factory.createCatchVariable(exceptionType, "a" + System.currentTimeMillis());
+        CtVariableAccess accessToException = factory.createVariableRead(catchVariable.getReference(), false);
+
+        CtBlock catchCode = factory.createBlock();
+        catchCode
+                .addStatement(factory.createInvocation(
+                        observerClassAccess,
+                        observeExceptionMethod.getReference(),
+                        factory.createLiteral(getBaseObservationPoint() + "|!"),
+                        accessToException.clone()))
+                .addStatement(factory.createThrow().setThrownExpression(accessToException.clone()));
+
+        CtCatch catchBlock = factory.createCatch();
+        catchBlock.setParameter(catchVariable).setBody(catchCode);
+
+        method.setBody(factory.createTry().addCatcher(catchBlock).setBody(method.getBody()));
+    }
+
+    public static void process(CtMethod<?> method) {
+        ObservationAttacherProcessor processor = new ObservationAttacherProcessor(method);
+        ProcessingVisitor visitor = new ProcessingVisitor(method.getFactory());
+        visitor.setProcessor(processor);
+        CtBlock<?> body = method.getBody();
+        if(body != null) {
+            body.accept(visitor);
+        }
+        processor.processingDone();
+    }
+
 }
