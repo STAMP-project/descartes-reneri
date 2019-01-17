@@ -3,6 +3,8 @@ package eu.stamp_project.reneri.observations;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonSyntaxException;
+import com.google.gson.stream.MalformedJsonException;
 
 public abstract class Observation {
 
@@ -29,21 +31,26 @@ public abstract class Observation {
     }
 
     public static Observation fromLine(String line) throws InvalidObservationException {
-        Gson gson = new Gson();
-        JsonObject object = gson.fromJson(line, JsonObject.class);
+        try {
+            Gson gson = new Gson();
+            JsonObject object = gson.fromJson(line, JsonObject.class);
 
-        String pointcut = get(object, "point");
+            String pointcut = get(object, "point");
 
-        //TODO: If the type of observations increase then refactor
-        if(object.has("exception")) {
-            return new ExceptionObservation(pointcut, get(object, "exception"), get(object, "message"));
+            //TODO: If the type of observations increase then refactor
+            if (object.has("exception")) {
+                return new ExceptionObservation(pointcut, get(object, "exception"), get(object, "message"));
+            }
+
+            if (object.has("null")) {
+                return new NullValueObservation(pointcut, object.get("type").getAsString(), object.get("null").getAsBoolean());
+            }
+
+            return new AtomicValueObservation(pointcut, get(object, "type"), get(object, "value"));
         }
-
-        if(object.has("null")) {
-            return new NullValueObservation(pointcut, object.get("type").getAsString(), object.get("null").getAsBoolean());
+        catch (JsonSyntaxException exc) {
+            throw new InvalidObservationException("Malformed JSON line: " + line, exc);
         }
-
-        return new AtomicValueObservation(pointcut, get(object, "type"), get(object, "value"));
     }
 
 }
