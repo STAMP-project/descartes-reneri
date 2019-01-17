@@ -1,6 +1,7 @@
 package eu.stamp_project.reneri.instrumentation;
 
 import spoon.processing.AbstractProcessor;
+import spoon.reflect.code.CtBlock;
 import spoon.reflect.code.CtExpression;
 import spoon.reflect.cu.SourcePosition;
 import spoon.reflect.declaration.CtClass;
@@ -25,7 +26,11 @@ public class PointcutLocator extends AbstractProcessor<CtClass<?>> {
                     pointLocations.add(point, expression.getPosition());
                 }
             });
-            method.getBody().accept(visitor);
+
+            CtBlock<?> body = method.getBody();
+            if(body!= null) {
+                body.accept(visitor);
+            }
         }
     }
 }
