@@ -3,10 +3,11 @@ package eu.stamp_project.reneri.observations;
 import java.io.*;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.stream.Stream;
 
 public class ObservationCollection {
 
-    private final static String JSONL_EXT = ".jsonl";
+    private final static String OBSERVATIONS_JSONL = "observations.jsonl";
 
     private HashMap<String, PointObservationCollection> pointObservations = new HashMap<>();
 
@@ -21,18 +22,20 @@ public class ObservationCollection {
 
     private void fromFolder(Path folderPath) throws InvalidObservationFileException {
         File folder = folderPath.toFile();
-        File[] fileEntries = folder.listFiles();
 
-        if(fileEntries == null) {
+        File[] directories = folder.listFiles((file) -> file.isDirectory() && file.canRead());
+
+        if(directories == null) {
             // Empty folder
             return;
         }
-
-        for(File file : fileEntries) { // Not using Files.walk to handle exceptions
+        Iterable<File> observationFiles = Arrays.stream(directories)
+                .map(dir -> dir.toPath().resolve(OBSERVATIONS_JSONL).toFile())
+                .filter(file -> file.exists() && file.canRead())
+                ::iterator;
+        for(File file : observationFiles) {
             try {
-                if(file.isFile() && file.canRead() && file.getName().endsWith(JSONL_EXT)) {
-                    addGroups(loadGroupedObservations(file));
-                }
+                addGroups(loadGroupedObservations(file));
             }
             catch(IOException exc) {
                 throw new InvalidObservationFileException("Error while reading the file", file.getName(), exc);
