@@ -35,13 +35,12 @@ public class StateObserver {
         REPLACEMENT['\f'] = "\\f";
     }
 
-
     private static Writer output;
-    private static NumberFormat format = NumberFormat.getNumberInstance(Locale.ROOT);
 
-    private static String currentPoint = "";
+//    private static NumberFormat format = NumberFormat.getNumberInstance(Locale.ROOT);
+//    private static String currentPoint = "";
 
-//    //static String typeToObserve;
+//    static String typeToObserve;
 //
 //    private static String SEP = "#";
 
@@ -305,12 +304,14 @@ public class StateObserver {
     }
 
     public static double observe(String point, double value) {
-        observe(point, "double", format.format(value));
+        //TODO: Deal with Infinity, -Infinity and Nan
+        observe(point, "double", Double.toString(value));
         return value;
     }
 
     public static Double observe(String point, Double value) {
-        observe(point, "java.lang.Double", (value==null)?"null":format.format(value));
+        //TODO: Deal with Infinity, -Infinity and Nan
+        observe(point, "java.lang.Double", (value==null)?"null":value.toString());
         return value;
     }
 
