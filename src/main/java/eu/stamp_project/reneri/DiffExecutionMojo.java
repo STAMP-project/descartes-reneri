@@ -337,7 +337,7 @@ public class DiffExecutionMojo extends AbstractMojo {
                 Plugin surefire = pluginResolver.resolve(
                         "org.apache.maven.plugins",
                         "maven-surefire-plugin",
-                        "2.19",
+                        "2.22.1",
                         configuration(
                                 element("reportsDirectory", executionOutputFolder.resolve("surefire-reports").toAbsolutePath().toString()),
                                 element("redirectTestOutputToFile", "true"),
