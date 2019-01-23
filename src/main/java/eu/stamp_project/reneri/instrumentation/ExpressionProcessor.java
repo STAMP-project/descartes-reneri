@@ -143,6 +143,7 @@ public abstract class ExpressionProcessor extends AbstractProcessor<CtExpression
                 CtAnnotation.class,
                 CtAnnotationFieldAccess.class,
                 CtLambda.class,
+                CtExecutableReferenceExpression.class,
                 // Not observing unary operators, as their semantic is the same always (no operator overload)
                 // also the semantics of post-(increment|decrement) operators can be disrupted
                 CtUnaryOperator.class, //TODO: But pre-(inc|dec) could be observed
