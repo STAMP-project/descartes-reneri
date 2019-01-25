@@ -1,6 +1,10 @@
 package eu.stamp_project.reneri;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import eu.stamp_project.mutationtest.descartes.codegeneration.MutationClassAdapter;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.model.Plugin;
 import org.apache.maven.plugin.AbstractMojo;
@@ -13,12 +17,16 @@ import org.apache.maven.plugins.annotations.Component;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
 import org.codehaus.plexus.util.xml.Xpp3Dom;
+import org.pitest.mutationtest.engine.Location;
 import org.pitest.mutationtest.engine.MutationIdentifier;
+import org.pitest.reloc.asm.ClassReader;
+import org.pitest.reloc.asm.ClassWriter;
 import spoon.MavenLauncher;
 import spoon.reflect.declaration.CtClass;
 
 import java.io.File;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,6 +35,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.twdata.maven.mojoexecutor.MojoExecutor.*;
 import static org.twdata.maven.mojoexecutor.MojoExecutor.executionEnvironment;
@@ -193,8 +202,103 @@ public abstract class AbstractObservationMojo extends AbstractMojo {
         return  Paths.get(project.getBuild().getOutputDirectory(),  mutation.getClassName().asInternalName() + ".class");
     }
 
+    protected Path getClassFilePath(String className) {
+        String[] parts = className.split("\\.");
+        parts[parts.length - 1] += ".class";
+        return Paths.get(project.getBuild().getOutputDirectory(), parts);
+    }
+
     protected MavenLauncher getLauncherForProject() {
         return new MavenLauncher(project.getBasedir().getAbsolutePath(), MavenLauncher.SOURCE_TYPE.ALL_SOURCE);
     }
+
+    protected byte[] mutate(byte[] originalClass, MutationIdentifier mutation) {
+        ClassReader classReader = new ClassReader(originalClass);
+        ClassWriter classWriter = new ClassWriter(classReader, ClassWriter.COMPUTE_FRAMES);
+        MutationClassAdapter adapter = new MutationClassAdapter(mutation, classWriter);
+        classReader.accept(adapter, ClassReader.EXPAND_FRAMES);
+        return classWriter.toByteArray();
+    }
+
+    protected void executeTestsOnce(Path resultFolder, Set<String> classes)  throws MojoExecutionException {
+        getLog().info("Executing tests");
+        String testsToRun = classes.stream().collect(Collectors.joining(", "));
+        getLog().debug("Test classes to execute: " + testsToRun);
+
+        try {
+            Path executionOutputFolder = resultFolder.resolve(Long.toString(System.currentTimeMillis()));
+
+            setUserPropertyInSession("stamp.reneri.folder", executionOutputFolder.toAbsolutePath().toString());
+            executePlugin("org.apache.maven.plugins",
+                    "maven-surefire-plugin",
+                    "2.22.1",
+                    configuration(
+                            element("reportsDirectory", executionOutputFolder.resolve("surefire-reports").toAbsolutePath().toString()),
+                            element("redirectTestOutputToFile", "true"),
+                            element("test", testsToRun)
+                    ),
+                    "test"
+            );
+        } catch (MojoExecutionException exc) {
+            getLog().warn("Issues while executing the tests ", exc);
+        }
+    }
+
+    protected void saveMutationInfo(Path folder, MutationIdentifier mutation, Set<String> tests) throws MojoExecutionException {
+        Location location = mutation.getLocation();
+        JsonObject obj = new JsonObject();
+        obj.addProperty("mutator", mutation.getMutator());
+        obj.addProperty("class", location.getClassName().getNameWithoutPackage().toString());
+        obj.addProperty("package", location.getClassName().getPackage().toString());
+        obj.addProperty("method", location.getMethodName().toString());
+        obj.addProperty("description", location.getMethodDesc());
+
+        if(!tests.isEmpty()) {
+            JsonArray testArray = new JsonArray();
+            tests.forEach(testArray::add);
+            obj.add("tests", testArray);
+        }
+
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+
+        try(FileWriter writer = new FileWriter(folder.resolve("mutation.json").toFile())) {
+            gson.toJson(obj, writer);
+        }
+
+        catch (IOException exc) {
+            throw new MojoExecutionException("Could not save mutation details " + mutation.toString(), exc);
+        }
+    }
+
+    protected byte[] readBytes(Path path) throws MojoExecutionException {
+        try {
+            return Files.readAllBytes(path);
+        }
+        catch (IOException exc) {
+            throw new MojoExecutionException("Error while reading file " + path.toString());
+        }
+    }
+
+    protected void writeBytes(Path path, byte[] bytes) throws MojoExecutionException {
+        try {
+            FileUtils.write(path, bytes);
+        }
+        catch (IOException exc) {
+            throw new MojoExecutionException("Error while writing file " + path.toString());
+        }
+    }
+
+    protected void ensureObservationFolderIsEmpty(String name) throws MojoExecutionException {
+        try {
+            Path testObservationDirectory = getPathTo("observations", name);
+            getLog().info("Cleaning folder " + testObservationDirectory);
+            FileUtils.createEmptyDirectory(testObservationDirectory);
+        }
+        catch(IOException exc) {
+            throw new MojoExecutionException("Clould not clean observation output folder " + name, exc);
+        }
+
+    }
+
 
 }

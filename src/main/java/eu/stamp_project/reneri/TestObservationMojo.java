@@ -61,7 +61,7 @@ public class TestObservationMojo extends AbstractObservationMojo {
     public void execute() throws MojoExecutionException, MojoFailureException {
         try {
 
-            cleanEnvironment();
+            ensureObservationFolderIsEmpty("tests");
 
             instrumentTestClasses();
 
@@ -82,17 +82,6 @@ public class TestObservationMojo extends AbstractObservationMojo {
         }
         catch (Throwable exc) {
             throw new MojoExecutionException("Process failed", exc);
-        }
-    }
-
-    private void cleanEnvironment() throws MojoExecutionException {
-        getLog().info("Cleaning previous results");
-        try {
-            Path testObservationDirectory = getPathTo("observations", "tests");
-            FileUtils.createEmptyDirectory(testObservationDirectory);
-        }
-        catch(IOException exc) {
-            throw new MojoExecutionException("Clould not clean output folder", exc);
         }
     }
 
@@ -219,29 +208,8 @@ public class TestObservationMojo extends AbstractObservationMojo {
     }
 
     private void executeTests(Path resultFolder, Set<String> classes)  throws MojoExecutionException {
-
         for(int iteration = 0; iteration < getTestTimes(); iteration++) {
-            getLog().info("Executing tests");
-            String testsToRun = classes.stream().collect(Collectors.joining(", "));
-            getLog().debug("Test classes to execute: " + testsToRun);
-
-            try {
-                Path executionOutputFolder = resultFolder.resolve(Long.toString(System.currentTimeMillis()));
-
-                setUserPropertyInSession("stamp.reneri.folder", executionOutputFolder.toAbsolutePath().toString());
-                executePlugin("org.apache.maven.plugins",
-                        "maven-surefire-plugin",
-                        "2.22.1",
-                        configuration(
-                                element("reportsDirectory", executionOutputFolder.resolve("surefire-reports").toAbsolutePath().toString()),
-                                element("redirectTestOutputToFile", "true"),
-                                element("test", testsToRun)
-                        ),
-                        "test"
-                );
-            } catch (MojoExecutionException exc) {
-                getLog().warn("Issues while executing the tests ", exc);
-            }
+            executeTestsOnce(resultFolder, classes);
         }
 
     }
@@ -270,8 +238,6 @@ public class TestObservationMojo extends AbstractObservationMojo {
         }
     }
 
-
-
     private void executeMutation(Path resultFolderPath, MutationIdentifier mutation) throws IOException, MojoExecutionException {
         // Mutate the source code
         Path pathToClass = getClassFilePath(mutation);
@@ -287,33 +253,7 @@ public class TestObservationMojo extends AbstractObservationMojo {
         FileUtils.write(pathToClass, originalClass);
     }
 
-    private byte[] mutate(byte[] originalClass, MutationIdentifier mutation) {
-        ClassReader classReader = new ClassReader(originalClass);
-        ClassWriter classWriter = new ClassWriter(classReader, ClassWriter.COMPUTE_FRAMES);
-        MutationClassAdapter adapter = new MutationClassAdapter(mutation, classWriter);
-        classReader.accept(adapter, ClassReader.EXPAND_FRAMES);
-        return classWriter.toByteArray();
-    }
 
-    private void saveMutationInfo(Path folder, MutationIdentifier mutation, Set<String> tests) throws IOException {
-        Location location = mutation.getLocation();
-        JsonObject obj = new JsonObject();
-        obj.addProperty("mutator", mutation.getMutator());
-        obj.addProperty("class", location.getClassName().getNameWithoutPackage().toString());
-        obj.addProperty("package", location.getClassName().getPackage().toString());
-        obj.addProperty("method", location.getMethodName().toString());
-        obj.addProperty("description", location.getMethodDesc());
 
-        if(!tests.isEmpty()) {
-            JsonArray testArray = new JsonArray();
-            tests.forEach(testArray::add);
-            obj.add("tests", testArray);
-        }
 
-        Gson gson = new GsonBuilder().setPrettyPrinting().create();
-
-        try(FileWriter writer = new FileWriter(folder.resolve("mutation.json").toFile())) {
-            gson.toJson(obj, writer);
-        }
-    }
 }

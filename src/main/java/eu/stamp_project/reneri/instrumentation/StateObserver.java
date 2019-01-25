@@ -9,7 +9,9 @@ import java.lang.reflect.Modifier;
 import java.nio.file.Paths;
 import java.text.NumberFormat;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class StateObserver {
 
@@ -350,7 +352,7 @@ public class StateObserver {
         return result.getBuffer().toString();
     }
 
-    protected static class FieldIterator implements Iterator<Field> {
+    public static class FieldIterator implements Iterator<Field> {
 
         private Class<?> initialClass;
 
@@ -403,6 +405,97 @@ public class StateObserver {
 
     private static Iterable<Field> getFields(Class<?> klass) {
         return () -> new FieldIterator(klass);
+    }
+
+
+    private static AtomicInteger counter = new AtomicInteger();
+
+    public static void observe(String point, StackTraceElement[] stackTrace) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("{\"point\"=")
+                .append(quote(point))
+                .append(", \"trace\"=[");
+        for(int index = 1; index < stackTrace.length; index++) {
+            if (index != 1) {
+                builder.append(',');
+                StackTraceElement element = stackTrace[index];
+                builder.append("{\"class\"=").append(quote(element.getClassName()))
+                        .append(", \"method\"=").append(quote(element.getMethodName()))
+                        .append(",\"line\"=").append(element.getLineNumber())
+                        .append("}");
+            }
+        }
+        builder.append("]}\n");
+        write(builder.toString());
+    }
+
+    public static void observeProgramState(
+            String containerClassName,
+            String methodName,
+            String signature,
+            Class[] parameterTypes,
+            Object[] parameters,
+            Class thatType,
+            Object that,
+            Class resultType,
+            Object result) {
+        synchronized (counter) {
+            String pointcut = counter.getAndIncrement() + "|";
+            StackTraceElement[] stackTrace = new Exception().getStackTrace();
+            observe(pointcut + "#trace|length", stackTrace.length - 1);
+            observe(pointcut + "#trace", stackTrace);
+
+            observeState(pointcut + "#that", thatType, that);
+            observeState(pointcut + "#result", resultType, result);
+        }
+    }
+
+    private static String getMethodCallPointcut(String className, String methodName, String methodDesccription) {
+        return String.format("%s|%s|%s|%d", className, methodName, methodDesccription, counter.getAndIncrement());
+    }
+
+    public static void observeMethodCall(
+            String containerClassName,
+            String methodName,
+            String methodDescription,
+            Class[] parameterTypes,
+            Object[] parameters,
+            Class thatType,
+            Object that,
+            Class resultType,
+            Object result){
+        synchronized (counter) {
+            String pointcut = getMethodCallPointcut(containerClassName, methodName, methodDescription);
+
+            StackTraceElement[] stackTrace = new Exception().getStackTrace();
+            observe(pointcut + "|#trace|length", stackTrace.length - 1);
+            observe(pointcut + "|#trace", stackTrace);
+
+            for(int index = 0; index < parameters.length; index++) {
+                observeState(pointcut + "|#" + index, parameterTypes[index], parameters[index]);
+            }
+
+            if(that != null) {
+                observeState(pointcut + "|#that", thatType, that);
+            }
+
+            if(resultType != void.class && resultType != Void.class) {
+                observeState(pointcut + "|#result", resultType, result);
+            }
+        }
+    }
+
+    public static void observeMethodCall(
+            String containerClassName,
+            String methodName,
+            String methodDescription,
+            Class[] parameterTypes,
+            Object[] parameters,
+            Class resultType,
+            Object result) {
+
+        observeMethodCall(containerClassName, methodName, methodDescription, parameterTypes, parameters, null, null, resultType, result);
+
     }
 
 

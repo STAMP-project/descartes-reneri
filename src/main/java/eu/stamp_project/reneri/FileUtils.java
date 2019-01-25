@@ -1,7 +1,6 @@
 package eu.stamp_project.reneri;
 
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.EnumSet;
@@ -69,6 +68,22 @@ public class FileUtils {
         try(FileOutputStream output = new FileOutputStream(path.toFile())) {
             output.write(content);
         }
+    }
+
+    public static void write(Path path, InputStream stream) throws IOException {
+        try (FileOutputStream output = new FileOutputStream(path.toFile())) {
+            copy(stream, output);
+        }
+    }
+
+    public static void copy(InputStream input, OutputStream output) throws IOException {
+        byte[] buffer = new byte[0x1000];
+        int length;
+
+        while ((length = input.read(buffer)) > 0) {
+            output.write(buffer, 0, length);
+        }
+
     }
 
 }
