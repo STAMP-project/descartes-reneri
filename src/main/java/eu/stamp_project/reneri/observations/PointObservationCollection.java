@@ -6,6 +6,10 @@ import java.util.stream.Stream;
 
 public class PointObservationCollection {
 
+    public String getIdentifier() {
+        return pointcut;
+    }
+
     private String pointcut;
     private List<Observation[]> archives = new LinkedList<>();
 

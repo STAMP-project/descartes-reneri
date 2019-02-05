@@ -1,9 +1,12 @@
 package eu.stamp_project.reneri;
 
 import com.google.gson.*;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
 import eu.stamp_project.reneri.inference.Condition;
 import spoon.reflect.cu.SourcePosition;
 
+import java.io.IOException;
 import java.lang.reflect.Type;
 
 public class ConditionMismatch {
@@ -39,7 +42,7 @@ public class ConditionMismatch {
                 JsonObject object = new JsonObject();
 
                 object.addProperty("pointcut", src.pointcut);
-                object.addProperty("condition", src.condition.getClass().getSimpleName());
+                object.add("condition", context.serialize(src.condition, Condition.class));
 
                 if(src.position != null) {
 
@@ -52,7 +55,6 @@ public class ConditionMismatch {
                 }
 
                 return object;
-
             }
         };
     }

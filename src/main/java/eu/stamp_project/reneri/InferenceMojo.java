@@ -1,8 +1,6 @@
 package eu.stamp_project.reneri;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonSerializer;
+import com.google.gson.*;
 import eu.stamp_project.reneri.inference.*;
 import eu.stamp_project.reneri.instrumentation.PointcutLocator;
 import eu.stamp_project.reneri.instrumentation.Trie;
@@ -21,6 +19,8 @@ import spoon.reflect.cu.SourcePosition;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -62,15 +62,18 @@ public class InferenceMojo extends AbstractMojo {
 
             locatePointCuts();
 
-            ObservationCollection originalObservations = new ObservationCollection(outputFolder.toPath().resolve("original"));
+
+            Path observationPath = outputFolder.toPath().resolve(Paths.get("observations", "tests"));
+            ObservationCollection originalObservations = new ObservationCollection(observationPath.resolve("original"));
 
             Gson gson = new GsonBuilder()
+                    // TODO: Serializers out of their classes
                     .registerTypeAdapter(ConditionMismatch.class, ConditionMismatch.getSerializer())
+                    .registerTypeAdapter(Condition.class, new ConditionSerializer())
                     .setPrettyPrinting()
                     .create();
 
-
-            for (File file : outputFolder.listFiles()) {
+            for (File file : observationPath.toFile().listFiles()) {
                 if (!file.isDirectory() || file.getName().equals("original")) {
                     continue;
                 }
@@ -105,7 +108,6 @@ public class InferenceMojo extends AbstractMojo {
                 continue;
             }
             //TODO: Possible optimization, keep a cached list of conditions already inferred
-
             PointObservationCollection originalPoint = original.get(point);
             PointObservationCollection mutatedPoint = mutated.get(point);
 
