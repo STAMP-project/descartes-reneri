@@ -1,12 +1,11 @@
 package eu.stamp_project.reneri;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import eu.stamp_project.reneri.instrumentation.StateObserver;
 import javassist.*;
-import javassist.compiler.MemberResolver;
+import org.apache.maven.artifact.DependencyResolutionRequiredException;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.*;
@@ -21,18 +20,20 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Array;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 
 @Mojo(name = "observeMethods", requiresDependencyResolution =  ResolutionScope.TEST)
 @Execute(phase = LifecyclePhase.TEST_COMPILE)
 public class MethodObservationMojo extends AbstractObservationMojo {
 
-    private final static String PROBE_SNIPPET = "{StateObserver.observeMethodCall(\"%s\", \"%s\", \"%s\", $sig, $args, %s $type, ($w)$_);}";
+    private final static String PROBE_SNIPPET = "{eu.stamp_project.reneri.instrumentation.StateObserver.observeMethodCall(\"%s\", \"%s\", \"%s\", $sig, $args, %s $type, ($w)$_);}";
 
     @Parameter(property = "methodReport", defaultValue = "${project.build.directory/methods.json}")
     private File methodReport;
@@ -46,6 +47,8 @@ public class MethodObservationMojo extends AbstractObservationMojo {
     }
 
     private List<MethodRecord> illTestedMethods;
+
+    private ClassPool projectClassPool;
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
@@ -189,7 +192,6 @@ public class MethodObservationMojo extends AbstractObservationMojo {
         getLog().info("Observing method" + methodRecord);
 
         Path pathToClassFile = getClassFilePath(methodRecord.getClassQualifiedName());
-        //TODO: Check if the original buffer is changed or not.
 
         byte[] originalClassBuffer = readBytes(pathToClassFile);
         byte[] classWithProbe = insertProbeForMethod(methodRecord, originalClassBuffer);
@@ -216,7 +218,6 @@ public class MethodObservationMojo extends AbstractObservationMojo {
                 throw new MojoExecutionException("Could not create directories for mutation observation", exc);
             }
 
-
             saveMutationInfo(mutationObservationResults, mutation, testsExecutingMutation);
             executeTestsOnce(mutationObservationResults, getInvolvedTestsFor(mutation));
         }
@@ -225,19 +226,31 @@ public class MethodObservationMojo extends AbstractObservationMojo {
         writeBytes(pathToClassFile, originalClassBuffer);
     }
 
-    private byte[] insertProbeForMethod(MethodRecord methodRecord, byte[] classBuffer) {
-        try {
-            ClassPool pool = new ClassPool(null);
-            pool.appendSystemPath();
-            pool.appendClassPath(new ByteArrayClassPath(methodRecord.getClassQualifiedName(), classBuffer));
-            pool.appendClassPath(new ClassClassPath(StateObserver.class));
-            pool.importPackage(StateObserver.class.getPackage().getName());
-
-            CtClass classToMutate = pool.getCtClass(methodRecord.getClassQualifiedName());
-
-            if(classToMutate.isFrozen()) {
-                classToMutate.defrost(); //??
+    private ClassPool getProjectClassPool() throws MojoExecutionException {
+        if(projectClassPool == null) {
+            try {
+                projectClassPool = new ClassPool(ClassPool.getDefault());
+                for (String path : getProject().getTestClasspathElements()) {
+                    projectClassPool.appendClassPath(path); // Include dependencies in the class pool so the probe can be compiled
+                }
             }
+            catch (DependencyResolutionRequiredException exc) {
+                throw new MojoExecutionException("Unexpected error while resolving project's classpath", exc);
+            }
+            catch (NotFoundException exc) {
+                throw new MojoExecutionException("Issues findind project's classpath elements", exc);
+            }
+        }
+        return projectClassPool;
+    }
+
+    private byte[] insertProbeForMethod(MethodRecord methodRecord , byte[] classBuffer) throws MojoExecutionException {
+        try {
+            ClassPool transformationClassPool = new ClassPool(getProjectClassPool());
+            transformationClassPool.childFirstLookup = true;
+            transformationClassPool.appendClassPath(new ByteArrayClassPath(methodRecord.getClassQualifiedName(), classBuffer));
+
+            CtClass classToMutate = transformationClassPool.getCtClass(methodRecord.getClassQualifiedName());
             CtMethod methodToMutate = classToMutate.getMethod(methodRecord.getName(), methodRecord.getDescription());
 
             String probe  = String.format(PROBE_SNIPPET,
@@ -247,12 +260,11 @@ public class MethodObservationMojo extends AbstractObservationMojo {
                     javassist.Modifier.isStatic(methodToMutate.getModifiers()) ? "" : "$class, $0,");
 
             getLog().debug(probe);
-
             methodToMutate.insertAfter(probe, true);
-
             return classToMutate.toBytecode();
+
         }
-        catch (Throwable exc) {
+        catch (CannotCompileException | NotFoundException | IOException exc) {
             throw new AssertionError("Inserting the probe should not produce any error.", exc);
         }
     }

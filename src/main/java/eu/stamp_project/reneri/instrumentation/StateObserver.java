@@ -184,16 +184,27 @@ public class StateObserver {
         return result;
     }
 
+    private static boolean mustSkipField(Field field) {
+        //Skipping fields instrumented to compute coverage
+        Class<?> type = field.getType();
+        return field.getName().equals("$jacocoData") && type.isArray() && type.getComponentType().equals(boolean.class);
+    }
+
+
     private static void observeInternalState(String point, Object value) {
         for (Field field : getFields(value.getClass())) {
+            if(mustSkipField(field)) {
+                continue;
+            }
+
             if (!field.isAccessible()) {
                 field.setAccessible(true);
             }
-            Class<?> fieldType = field.getType();
+
             String fieldPoint = point + "|" + field.getName();
             try {
                 Object fieldValue = field.get(value);
-                observeBasicState(fieldPoint, fieldType, fieldValue);
+                observeBasicState(fieldPoint, field.getType(), fieldValue);
             } catch (Throwable exc) {
                 observeThrownException(point, exc);
             }
@@ -412,18 +423,19 @@ public class StateObserver {
 
     public static void observe(String point, StackTraceElement[] stackTrace) {
         StringBuilder builder = new StringBuilder();
-        builder.append("{\"point\"=")
+        builder.append("{\"point\":")
                 .append(quote(point))
-                .append(", \"trace\"=[");
+                .append(", \"trace\":[");
         for(int index = 1; index < stackTrace.length; index++) {
             if (index != 1) {
                 builder.append(',');
-                StackTraceElement element = stackTrace[index];
-                builder.append("{\"class\"=").append(quote(element.getClassName()))
-                        .append(", \"method\"=").append(quote(element.getMethodName()))
-                        .append(",\"line\"=").append(element.getLineNumber())
-                        .append("}");
             }
+            StackTraceElement element = stackTrace[index];
+            builder.append("{\"class\":").append(quote(element.getClassName()))
+                    .append(", \"method\":").append(quote(element.getMethodName()))
+                    .append(",\"line\":").append(element.getLineNumber())
+                    .append("}");
+
         }
         builder.append("]}\n");
         write(builder.toString());
@@ -441,8 +453,14 @@ public class StateObserver {
             Object result) {
         synchronized (counter) {
             String pointcut = counter.getAndIncrement() + "|";
+
+            // There is no evidence that observing the stack trace would produce valuable results,
+            // and there are many spurious differences with line numbers lower than 0
+            // however, with the stack trace we can identify the exact test method that triggered the execution
+            // so we record the stack trace but we don't use it while computing the differences.
+
             StackTraceElement[] stackTrace = new Exception().getStackTrace();
-            observe(pointcut + "#trace|length", stackTrace.length - 1);
+//            observe(pointcut + "#trace|length", stackTrace.length - 1);
             observe(pointcut + "#trace", stackTrace);
 
             observeState(pointcut + "#that", thatType, that);
@@ -453,6 +471,7 @@ public class StateObserver {
     private static String getMethodCallPointcut(String className, String methodName, String methodDesccription) {
         return String.format("%s|%s|%s|%d", className, methodName, methodDesccription, counter.getAndIncrement());
     }
+
 
     public static void observeMethodCall(
             String containerClassName,
@@ -466,9 +485,12 @@ public class StateObserver {
             Object result){
         synchronized (counter) {
             String pointcut = getMethodCallPointcut(containerClassName, methodName, methodDescription);
-
+            // There is no evidence that observing the stack trace would produce valuable results,
+            // and there are many spurious differences with line numbers lower than 0
+            // however, with the stack trace we can identify the exact test method that triggered the execution
+            // so we record the stack trace but we don't use it while computing the differences.
             StackTraceElement[] stackTrace = new Exception().getStackTrace();
-            observe(pointcut + "|#trace|length", stackTrace.length - 1);
+//            observe(pointcut + "|#trace|length", stackTrace.length - 1);
             observe(pointcut + "|#trace", stackTrace);
 
             for(int index = 0; index < parameters.length; index++) {
