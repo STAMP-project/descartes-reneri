@@ -322,6 +322,16 @@ public class StateObserver {
         return value;
     }
 
+    public static float observe(String point, float value) {
+        observe(point, "float", Float.toString(value));
+        return value;
+    }
+
+    public static Float observe(String point, Float value) {
+        observe(point, "java.lang.Float", value.toString());
+        return value;
+    }
+
     public static Double observe(String point, Double value) {
         //TODO: Deal with Infinity, -Infinity and Nan
         observe(point, "java.lang.Double", (value==null)?"null":value.toString());
