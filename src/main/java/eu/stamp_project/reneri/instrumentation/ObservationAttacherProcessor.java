@@ -5,7 +5,10 @@ import spoon.reflect.code.*;
 import spoon.reflect.declaration.*;
 import spoon.reflect.factory.Factory;
 import spoon.reflect.factory.TypeFactory;
+import spoon.reflect.reference.CtArrayTypeReference;
+import spoon.reflect.reference.CtIntersectionTypeReference;
 import spoon.reflect.reference.CtTypeReference;
+import spoon.reflect.visitor.PrettyPrinter;
 import spoon.support.visitor.ProcessingVisitor;
 
 import java.util.*;
@@ -71,10 +74,22 @@ public class ObservationAttacherProcessor extends ExpressionProcessor {
         even when it knows which types are involved.
         The workaround is to clone the reference and set all parameters as non-implicit.
         */
-        for(CtTypeReference<?> typeArguments: type.getActualTypeArguments()) {
-            typeArguments.setImplicit(false);
-        }
+        setNotImplicit(type);
+//        for(CtTypeReference<?> typeArgument: type.getActualTypeArguments()) {
+//            typeArgument.setImplicit(false);
+//
+//        }
         return type;
+    }
+
+    private static void setNotImplicit(CtTypeReference<?> type) {
+        type.setImplicit(false);
+        if(type instanceof CtArrayTypeReference) {
+            setNotImplicit(((CtArrayTypeReference<?>) type).getComponentType());
+        }
+        for(CtTypeReference<?> argument : type.getActualTypeArguments()) {
+            setNotImplicit(argument);
+        }
     }
 
     private CtExpression<?> createObservation(String point, CtExpression<?> expression) {
