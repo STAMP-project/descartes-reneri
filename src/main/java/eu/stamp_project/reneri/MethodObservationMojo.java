@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import eu.stamp_project.reneri.instrumentation.StateObserver;
+import eu.stamp_project.reneri.utils.FileUtils;
 import javassist.*;
 import org.apache.maven.artifact.DependencyResolutionRequiredException;
 import org.apache.maven.plugin.MojoExecutionException;

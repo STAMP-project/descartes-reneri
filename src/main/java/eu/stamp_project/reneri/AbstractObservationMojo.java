@@ -5,9 +5,9 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import eu.stamp_project.mutationtest.descartes.codegeneration.MutationClassAdapter;
+import eu.stamp_project.reneri.utils.FileUtils;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.model.Plugin;
-import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.BuildPluginManager;
 import org.apache.maven.plugin.MavenPluginManager;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -15,7 +15,6 @@ import org.apache.maven.plugin.version.PluginVersionResolutionException;
 import org.apache.maven.plugin.version.PluginVersionResolver;
 import org.apache.maven.plugins.annotations.Component;
 import org.apache.maven.plugins.annotations.Parameter;
-import org.apache.maven.project.MavenProject;
 import org.codehaus.plexus.util.xml.Xpp3Dom;
 import org.pitest.mutationtest.engine.Location;
 import org.pitest.mutationtest.engine.MutationIdentifier;
@@ -40,18 +39,7 @@ import java.util.stream.Collectors;
 import static org.twdata.maven.mojoexecutor.MojoExecutor.*;
 import static org.twdata.maven.mojoexecutor.MojoExecutor.executionEnvironment;
 
-public abstract class AbstractObservationMojo extends AbstractMojo {
-
-    @Parameter(defaultValue = "${project}")
-    private MavenProject project;
-
-    public MavenProject getProject() {
-        return project;
-    }
-
-    public void setProject(MavenProject project) {
-        this.project = project;
-    }
+public abstract class AbstractObservationMojo extends ReneriMojo {
 
     @Parameter(defaultValue = "${session}", readonly = true)
     private MavenSession mavenSession;
@@ -64,17 +52,6 @@ public abstract class AbstractObservationMojo extends AbstractMojo {
 
     @Component
     private PluginVersionResolver versionResolver;
-
-    @Parameter(property = "ouputFolder", defaultValue = "${project.build.directory}/reneri")
-    private File outputFolder;
-
-    public File getOutputFolder() {
-        return outputFolder;
-    }
-
-    public void setOutputFolder(File outputFolder) {
-        this.outputFolder = outputFolder;
-    }
 
     @Parameter(property = "testTimes", defaultValue = "10")
     private int testTimes; //Number of times the tests should be executed
@@ -120,7 +97,7 @@ public abstract class AbstractObservationMojo extends AbstractMojo {
 
     protected MavenPluginResolver getPluginResolver() {
         if(pluginResolver == null) {
-            pluginResolver = new MavenPluginResolver(project, mavenSession, versionResolver);
+            pluginResolver = new MavenPluginResolver(getProject(), mavenSession, versionResolver);
         }
         return pluginResolver;
     }
@@ -146,17 +123,10 @@ public abstract class AbstractObservationMojo extends AbstractMojo {
             Plugin plugin = getPluginResolver().resolve(groupId, artifactId, version, configuration);
             executeMojo(plugin, goal(goalToExecute),
                     (Xpp3Dom) plugin.getConfiguration(),
-                    executionEnvironment(project, mavenSession, pluginManager));
+                    executionEnvironment(getProject(), mavenSession, pluginManager));
         } catch (PluginVersionResolutionException exc) {
             throw new MojoExecutionException(String.format("Could not find %s:%s:%s", groupId, artifactId, version), exc);
         }
-    }
-
-    protected Path getPathTo(String directory, String... more) throws IOException {
-        Path folderPath = outputFolder.toPath().resolve(Paths.get(directory, more)).toAbsolutePath();
-        Files.createDirectories(folderPath);
-
-        return  folderPath;
     }
 
     private Set<CtClass<?>> testClasses;
@@ -199,17 +169,17 @@ public abstract class AbstractObservationMojo extends AbstractMojo {
     }
 
     protected Path getClassFilePath(MutationIdentifier mutation) {
-        return  Paths.get(project.getBuild().getOutputDirectory(),  mutation.getClassName().asInternalName() + ".class");
+        return  Paths.get(getProjectBuild().getOutputDirectory(),  mutation.getClassName().asInternalName() + ".class");
     }
 
     protected Path getClassFilePath(String className) {
         String[] parts = className.split("\\.");
         parts[parts.length - 1] += ".class";
-        return Paths.get(project.getBuild().getOutputDirectory(), parts);
+        return Paths.get(getProjectBuild().getOutputDirectory(), parts);
     }
 
     protected MavenLauncher getLauncherForProject() {
-        return new MavenLauncher(project.getBasedir().getAbsolutePath(), MavenLauncher.SOURCE_TYPE.ALL_SOURCE);
+        return new MavenLauncher(getAbsolutePathToProject(), MavenLauncher.SOURCE_TYPE.ALL_SOURCE);
     }
 
     protected byte[] mutate(byte[] originalClass, MutationIdentifier mutation) {

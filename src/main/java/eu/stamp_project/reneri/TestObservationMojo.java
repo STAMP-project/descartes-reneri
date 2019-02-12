@@ -2,41 +2,29 @@ package eu.stamp_project.reneri;
 
 
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import eu.stamp_project.mutationtest.descartes.codegeneration.MutationClassAdapter;
 import eu.stamp_project.reneri.instrumentation.ObserverClassProcessor;
 import eu.stamp_project.reneri.instrumentation.StateObserver;
-import org.apache.maven.artifact.DependencyResolutionRequiredException;
-import org.apache.maven.execution.MavenSession;
-import org.apache.maven.model.Plugin;
+import eu.stamp_project.reneri.utils.FileUtils;
 import org.apache.maven.plugin.*;
-import org.apache.maven.plugin.version.PluginVersionResolutionException;
-import org.apache.maven.plugin.version.PluginVersionResolver;
 import org.apache.maven.plugins.annotations.*;
 import org.apache.maven.plugins.annotations.Mojo;
-import org.apache.maven.project.MavenProject;
-import org.codehaus.plexus.util.xml.Xpp3Dom;
 import org.pitest.classinfo.ClassName;
 import org.pitest.mutationtest.engine.Location;
 import org.pitest.mutationtest.engine.MethodName;
 import org.pitest.mutationtest.engine.MutationIdentifier;
-import org.pitest.reloc.asm.ClassReader;
-import org.pitest.reloc.asm.ClassWriter;
 import spoon.MavenLauncher;
 import spoon.reflect.CtModel;
 import spoon.reflect.declaration.CtClass;
 
 import java.io.File;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import static org.twdata.maven.mojoexecutor.MojoExecutor.*;
 

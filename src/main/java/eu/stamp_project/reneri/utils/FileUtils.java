@@ -1,4 +1,4 @@
-package eu.stamp_project.reneri;
+package eu.stamp_project.reneri.utils;
 
 import java.io.*;
 import java.nio.file.*;
@@ -84,6 +84,15 @@ public class FileUtils {
             output.write(buffer, 0, length);
         }
 
+    }
+
+    public static File[] getChildrenDirectories(Path root) {
+        File rootDirectory = root.toFile();
+        File[] directories = rootDirectory.listFiles((file) ->  file.isDirectory() && file.canRead());
+        if(directories == null) {
+            return new File[0];
+        }
+        return directories;
     }
 
 }
