@@ -198,7 +198,8 @@ public class MethodObservationMojo extends AbstractObservationMojo {
         byte[] classWithProbe = insertProbeForMethod(methodRecord, originalClassBuffer);
         writeBytes(pathToClassFile, classWithProbe);
 
-        executeTestsOnce(pathToResults.resolve("original"), getInvolvedTestsFor(methodRecord));
+        executeTests(pathToResults.resolve("original"), getInvolvedTestsFor(methodRecord));
+//        executeTestsOnce(pathToResults.resolve("original"), getInvolvedTestsFor(methodRecord));
 
         int index = 0;
         for (MutationIdentifier mutation : methodRecord.getMutations()) {
@@ -220,7 +221,8 @@ public class MethodObservationMojo extends AbstractObservationMojo {
             }
 
             saveMutationInfo(mutationObservationResults, mutation, testsExecutingMutation);
-            executeTestsOnce(mutationObservationResults, getInvolvedTestsFor(mutation));
+            executeTests(mutationObservationResults, getInvolvedTestsFor(mutation));
+//            executeTestsOnce(mutationObservationResults, getInvolvedTestsFor(mutation));
         }
 
         //Restoring the original class

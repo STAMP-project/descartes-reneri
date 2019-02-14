@@ -214,6 +214,12 @@ public abstract class AbstractObservationMojo extends ReneriMojo {
         }
     }
 
+    protected void executeTests(Path resultFolder, Set<String> classes)  throws MojoExecutionException {
+        for(int iteration = 0; iteration < testTimes; iteration++) {
+            executeTestsOnce(resultFolder, classes);
+        }
+    }
+
     protected void saveMutationInfo(Path folder, MutationIdentifier mutation, Set<String> tests) throws MojoExecutionException {
         Location location = mutation.getLocation();
         JsonObject obj = new JsonObject();

@@ -195,12 +195,7 @@ public class TestObservationMojo extends AbstractObservationMojo {
         }
     }
 
-    private void executeTests(Path resultFolder, Set<String> classes)  throws MojoExecutionException {
-        for(int iteration = 0; iteration < getTestTimes(); iteration++) {
-            executeTestsOnce(resultFolder, classes);
-        }
 
-    }
 
     private void observeTransformations() throws MojoExecutionException {
         getLog().info("Observing transformation effects");
