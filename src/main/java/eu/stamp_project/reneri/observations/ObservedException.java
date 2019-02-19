@@ -29,8 +29,4 @@ public class ObservedException extends ObservedValue {
         return Objects.hash(typeName, exceptionMessage);
     }
 
-    @Override
-    public boolean isNull() {
-        return false;
-    }
 }

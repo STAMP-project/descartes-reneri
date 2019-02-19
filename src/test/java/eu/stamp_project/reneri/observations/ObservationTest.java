@@ -61,9 +61,6 @@ public class ObservationTest {
         assertFalse("Observe exceptions are never null", value.isNull());
     }
 
-
-
-
     @Test
     public void testAtomicObservationWithNullValue() throws InvalidObservationException {
 
@@ -77,6 +74,21 @@ public class ObservationTest {
         ObservedValue value = observation.getValue();
         assertThat(value, instanceOf(ObservedAtomicValue.class));
         assertTrue("Should be a null atomic value", value.isNull());
+    }
+
+    @Test
+    public void testStackTraceObservation() throws InvalidObservationException {
+        Observation observation = Observation.fromString("{\"point\":\"trace\", \"trace\":[{\"class\":\"joptsimple.util.EnumConverter\", \"method\":\"message\",\"line\":107},{\"class\":\"joptsimple.util.EnumConverter\", \"method\":\"convert\",\"line\":63},{\"class\":\"joptsimple.util.EnumConverterTest\", \"method\":\"rejectsNonEnumeratedValues\",\"line\":61},{\"class\":\"sun.reflect.NativeMethodAccessorImpl\", \"method\":\"invoke0\",\"line\":-2}]}");
+        ObservedValue value = observation.getValue();
+        assertThat(value, instanceOf(ObservedStackTrace.class));
+    }
+
+
+    @Test public void testEqualStackTraces() throws InvalidObservationException {
+        // The only difference is a -1 for the line of the first method
+        Observation one   = Observation.fromString("{\"point\":\"trace\", \"trace\":[{\"class\":\"joptsimple.util.EnumConverter\", \"method\":\"message\",\"line\":107},{\"class\":\"joptsimple.util.EnumConverter\", \"method\":\"convert\",\"line\":63},{\"class\":\"joptsimple.util.EnumConverterTest\", \"method\":\"rejectsNonEnumeratedValues\",\"line\":61},{\"class\":\"sun.reflect.NativeMethodAccessorImpl\", \"method\":\"invoke0\",\"line\":-2}]}");
+        Observation other = Observation.fromString("{\"point\":\"trace\", \"trace\":[{\"class\":\"joptsimple.util.EnumConverter\", \"method\":\"message\",\"line\":-1},{\"class\":\"joptsimple.util.EnumConverter\", \"method\":\"convert\",\"line\":63},{\"class\":\"joptsimple.util.EnumConverterTest\", \"method\":\"rejectsNonEnumeratedValues\",\"line\":61},{\"class\":\"sun.reflect.NativeMethodAccessorImpl\", \"method\":\"invoke0\",\"line\":-2}]}");
+        assertEquals(one.getValue(), other.getValue());
     }
 
 

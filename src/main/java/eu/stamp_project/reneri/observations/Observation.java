@@ -1,9 +1,6 @@
 package eu.stamp_project.reneri.observations;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonSyntaxException;
+import com.google.gson.*;
 import com.google.gson.stream.MalformedJsonException;
 
 import java.util.Objects;
@@ -34,14 +31,19 @@ public class Observation {
 
     public static Observation fromString(String definition) throws InvalidObservationException {
         try {
-            Gson gson = new Gson();
-            JsonObject object = gson.fromJson(definition, JsonObject.class);
 
+
+            Gson gson = new GsonBuilder().registerTypeAdapter(StackTraceElement.class, new StackTraceElementJsonAdapter()).create();
+
+            JsonObject object = gson.fromJson(definition, JsonObject.class);
             Observation observation = new Observation(get(object, "point"));
 
             //TODO: If the type of observations increase then refactor
             if (object.has("exception")) {
                 observation.value = new ObservedException(get(object, "exception"), get(object, "message"));
+            }
+            else if(object.has("trace")) {
+                observation.value = new ObservedStackTrace(gson.fromJson(object.get("trace"),  StackTraceElement[].class));
             }
             else if (object.has("null")) {
                 observation.value = new ObservedNullValue(get(object, "type"), object.get("null").getAsBoolean());

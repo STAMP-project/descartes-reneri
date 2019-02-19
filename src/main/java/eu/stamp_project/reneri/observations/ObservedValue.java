@@ -14,6 +14,6 @@ public abstract class ObservedValue {
         return typeName;
     }
     
-    public abstract boolean isNull();
+    public boolean isNull() { return false; };
 
 }
