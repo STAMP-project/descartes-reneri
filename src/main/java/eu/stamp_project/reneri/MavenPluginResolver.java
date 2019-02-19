@@ -2,10 +2,13 @@ package eu.stamp_project.reneri;
 
 import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
 import org.apache.maven.execution.MavenSession;
+import org.apache.maven.model.Dependency;
 import org.apache.maven.model.Plugin;
 import org.apache.maven.plugin.version.*;
 import org.apache.maven.project.MavenProject;
 import org.codehaus.plexus.util.xml.Xpp3Dom;
+
+import java.util.List;
 
 
 public class MavenPluginResolver {
@@ -72,6 +75,11 @@ public class MavenPluginResolver {
                 plugin.setConfiguration(Xpp3Dom.mergeXpp3Dom(requestedConfiguration, stablishedConfiguration));
             }
 
+        }
+
+        List<Dependency> dependencies = configured.getDependencies();
+        if(dependencies != null) {
+            plugin.setDependencies(dependencies);
         }
 
         if(!hasVersion(plugin)) {
