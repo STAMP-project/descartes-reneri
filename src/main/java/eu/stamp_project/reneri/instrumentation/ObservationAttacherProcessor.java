@@ -74,7 +74,7 @@ public class ObservationAttacherProcessor extends ExpressionProcessor {
         even when it knows which types are involved.
         The workaround is to clone the reference and set all parameters as non-implicit.
         */
-        setNotImplicit(type);
+        setExplicit(type);
 //        for(CtTypeReference<?> typeArgument: type.getActualTypeArguments()) {
 //            typeArgument.setImplicit(false);
 //
@@ -82,13 +82,13 @@ public class ObservationAttacherProcessor extends ExpressionProcessor {
         return type;
     }
 
-    private static void setNotImplicit(CtTypeReference<?> type) {
+    private static void setExplicit(CtTypeReference<?> type) {
         type.setImplicit(false);
         if(type instanceof CtArrayTypeReference) {
-            setNotImplicit(((CtArrayTypeReference<?>) type).getComponentType());
+            setExplicit(((CtArrayTypeReference<?>) type).getComponentType());
         }
         for(CtTypeReference<?> argument : type.getActualTypeArguments()) {
-            setNotImplicit(argument);
+            setExplicit(argument);
         }
     }
 

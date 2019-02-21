@@ -4,7 +4,9 @@ import spoon.processing.AbstractProcessor;
 import spoon.reflect.code.*;
 import spoon.reflect.declaration.*;
 import spoon.reflect.factory.TypeFactory;
+import spoon.reflect.reference.CtArrayTypeReference;
 import spoon.reflect.reference.CtTypeReference;
+import spoon.support.visitor.ProcessingVisitor;
 
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -15,8 +17,6 @@ import java.util.stream.Stream;
 //TODO: Consider refactor as a Visitor
 
 public abstract class ExpressionProcessor extends AbstractProcessor<CtExpression<?>> {
-
-
 
     //private CtMethod<?> targetMethod;
 
@@ -60,11 +60,13 @@ public abstract class ExpressionProcessor extends AbstractProcessor<CtExpression
 
     private boolean canProcessType(CtTypeReference type) {
         return type != null &&
-                !type.getQualifiedName().equals("?") && // Yep, unresolved type references are named as ? and I haven't found a better way to query this
+                !typesToAvoid.contains(type) &&
+                //!type.isGenerics() &&
                 !isDubiousGenericityResolution(type) &&
-                !type.isGenerics() &&
-                !type.isAnonymous() &&
-                !typesToAvoid.contains(type);
+                canBeExplicit(type)
+                //!type.getQualifiedName().equals("?") && // Yep, unresolved type references are named as ? and I haven't found a better way to query this
+                //!type.isAnonymous() &&
+                ;
     }
 
     private boolean isDubiousGenericityResolution(CtTypeReference reference) {
@@ -148,16 +150,40 @@ public abstract class ExpressionProcessor extends AbstractProcessor<CtExpression
                 // also the semantics of post-(increment|decrement) operators can be disrupted
                 CtUnaryOperator.class, //TODO: But pre-(inc|dec) could be observed
                 // Same goes for binary operators
-                CtBinaryOperator.class
+                CtBinaryOperator.class,
+                CtNewClass.class
         ).anyMatch(type -> type.isInstance(node));
     }
 
     private boolean canProcessASTNode(CtExpression<?> node) {
-        return !(isInAssignment(node) ||
+        return !(isBannedNode(node) ||
+                isInAssignment(node) ||
                 isClassLiteral(node) ||
                 isStaticFieldExpressionInInnerClass(node) ||
                 isBeingIncrementedOrDecremented(node) ||
-                isBannedNode(node));
+                isInCaseStatement(node));
+    }
+
+    private boolean isInCaseStatement(CtExpression<?> node) {
+        // For the cases in which an enum is used in a switch
+        // the case value is a variable and not a literal
+        return node.getParent() instanceof CtCase;
+    }
+
+    private boolean canBeExplicit(CtTypeReference<?> type) {
+        if(type.getQualifiedName().equals("?") || type.isAnonymous() || type.isGenerics()) {
+            return false;
+        }
+
+        if(type instanceof CtArrayTypeReference) {
+            return canBeExplicit(((CtArrayTypeReference<?>) type).getComponentType());
+        }
+        for(CtTypeReference<?> argument : type.getActualTypeArguments()) {
+            if(!canBeExplicit(argument)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private String getPointID() {
