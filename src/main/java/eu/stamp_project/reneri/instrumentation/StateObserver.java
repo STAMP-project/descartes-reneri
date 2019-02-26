@@ -246,7 +246,7 @@ public class StateObserver {
             return;
         }
         if (type.isArray()) {
-            observe(point + "|length", Array.getLength(value));
+            observe(point + "|#length", Array.getLength(value));
             return;
         }
 
@@ -260,11 +260,6 @@ public class StateObserver {
             observe(sizePointCut, ((Map) value).size());
             return;
         }
-    }
-
-    protected void observeSize(String point, int size) {
-        String sizePointCut = ;
-        observe(point + "|#size", size);
     }
 
     // Static observers, they will be resolved by the attacher
