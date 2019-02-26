@@ -95,4 +95,16 @@ public class FileUtils {
         return directories;
     }
 
+    public static byte[] toByteArray(InputStream input) throws IOException {
+        byte[] buffer = new byte[4 * 0x400];
+        int read;
+
+        try(ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            while((read = input.read(buffer, 0, buffer.length)) != -1) {
+                output.write(buffer, 0, read);
+            }
+            return output.toByteArray();
+        }
+    }
+
 }
