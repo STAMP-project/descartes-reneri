@@ -249,14 +249,22 @@ public class StateObserver {
             observe(point + "|length", Array.getLength(value));
             return;
         }
+
+        String sizePointCut = point + "|#size";
         if (value instanceof Collection) {
-            String sizePointCut = point + "|#size";
-            try {
-                observe(sizePointCut, ((Collection) value).size());
-            } catch (Throwable exc) { //Just in case :)
-                observeThrownException(sizePointCut, exc);
-            }
+            observe(sizePointCut, ((Collection) value).size());
+            return;
         }
+
+        if (value instanceof Map) {
+            observe(sizePointCut, ((Map) value).size());
+            return;
+        }
+    }
+
+    protected void observeSize(String point, int size) {
+        String sizePointCut = ;
+        observe(point + "|#size", size);
     }
 
     // Static observers, they will be resolved by the attacher
