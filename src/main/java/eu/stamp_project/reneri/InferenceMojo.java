@@ -3,7 +3,7 @@
 //import com.google.gson.*;
 //import eu.stamp_project.reneri.inference.*;
 //import eu.stamp_project.reneri.instrumentation.PointcutLocator;
-//import eu.stamp_project.reneri.instrumentation.Trie;
+//import eu.stamp_project.reneri.datastructures.Trie;
 //import eu.stamp_project.reneri.observations.InvalidObservationFileException;
 //import eu.stamp_project.reneri.observations.ObservationCollection;
 //import eu.stamp_project.reneri.observations.PointObservationCollection;

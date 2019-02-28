@@ -5,6 +5,9 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import eu.stamp_project.mutationtest.descartes.codegeneration.MutationClassAdapter;
+import eu.stamp_project.reneri.diff.BagOfValues;
+import eu.stamp_project.reneri.diff.DiffOnValues;
+import eu.stamp_project.reneri.observations.Observation;
 import eu.stamp_project.reneri.utils.FileUtils;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.model.Plugin;
@@ -30,16 +33,16 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static eu.stamp_project.reneri.utils.ExceptionUtils.propagate;
+import static eu.stamp_project.reneri.utils.FileUtils.getChildrenDirectories;
 import static org.twdata.maven.mojoexecutor.MojoExecutor.*;
 import static org.twdata.maven.mojoexecutor.MojoExecutor.executionEnvironment;
 
-public abstract class AbstractObservationMojo extends ReneriMojo {
+public abstract class AbstractObservationMojo extends AbstractDiffMojo {
 
     @Parameter(defaultValue = "${session}", readonly = true)
     private MavenSession mavenSession;
@@ -64,7 +67,6 @@ public abstract class AbstractObservationMojo extends ReneriMojo {
         this.testTimes = testTimes;
     }
 
-
     @Parameter(property = "stackTraces", defaultValue = "${project.build.directory}/stack-traces.json")
     private File stackTracesFile;
 
@@ -84,6 +86,28 @@ public abstract class AbstractObservationMojo extends ReneriMojo {
             return Collections.emptySet();
         }
         return excludedTests;
+    }
+
+    @Parameter(property = "computeDiff", defaultValue ="true")
+    private boolean computeDiff;
+
+    public boolean shouldComputeDiff() {
+        return computeDiff;
+    }
+
+    public void setComputeDiff(boolean computeDiff) {
+        this.computeDiff = computeDiff;
+    }
+
+    @Parameter(property = "keepObservations", defaultValue = "false")
+    private boolean keepObservations;
+
+    public boolean shouldKeepObservations() {
+        return keepObservations;
+    }
+
+    public void setKeepObservations(boolean keepObservations) {
+        this.keepObservations = keepObservations;
     }
 
     public void setExcludedTests(Set<String> excludedTests) {
@@ -170,6 +194,10 @@ public abstract class AbstractObservationMojo extends ReneriMojo {
 
     protected Path getClassFilePath(MutationIdentifier mutation) {
         return  Paths.get(getProjectBuild().getOutputDirectory(),  mutation.getClassName().asInternalName() + ".class");
+    }
+
+    protected Path getClassFilePath(MethodRecord method) {
+        return getClassFilePath(method.getClassQualifiedName());
     }
 
     protected Path getClassFilePath(String className) {
@@ -271,10 +299,49 @@ public abstract class AbstractObservationMojo extends ReneriMojo {
             FileUtils.createEmptyDirectory(testObservationDirectory);
         }
         catch(IOException exc) {
-            throw new MojoExecutionException("Clould not clean observation output folder " + name, exc);
+            throw new MojoExecutionException("Could not clean observation output folder " + name, exc);
         }
 
     }
 
+    protected void removeObservations(Path directory) throws MojoExecutionException {
+
+        try {
+            for (File child : FileUtils.getChildrenDirectories(directory)) {
+                FileUtils.deleteDirectory(child.toPath());
+            }
+        }
+        catch(IOException exc) {
+            throw new MojoExecutionException("Could not delete observations from " + directory, exc);
+        }
+    }
+
+    protected void generateDiffReportFor(Path pathToObservations, BagOfValues originalValues) throws MojoExecutionException {
+
+        if(!shouldComputeDiff()) {
+            getLog().info("Skipping diff on " + pathToObservations);
+            return;
+        }
+
+        computeDiffOnFolder(pathToObservations, originalValues);
+
+        if(shouldKeepObservations()) {
+            return;
+        }
+
+        removeObservations(pathToObservations);
+    }
+
+    protected void removeOriginalObservationsIfNeeded(Path pathToResults) throws MojoExecutionException {
+        if(shouldKeepObservations()) {
+            return;
+        }
+        try {
+            FileUtils.deleteDirectory(pathToResults.resolve("original"));
+        }
+        catch (IOException exc) {
+            throw new MojoExecutionException("Could not remove original observations at " + pathToResults, exc);
+        }
+    }
 
 }

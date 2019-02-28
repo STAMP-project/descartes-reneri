@@ -4,6 +4,7 @@ package eu.stamp_project.reneri;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import eu.stamp_project.reneri.diff.BagOfValues;
 import eu.stamp_project.reneri.instrumentation.ObserverClassProcessor;
 import eu.stamp_project.reneri.instrumentation.StateObserver;
 import eu.stamp_project.reneri.utils.FileUtils;
@@ -62,11 +63,13 @@ public class TestObservationMojo extends AbstractObservationMojo {
 
             loadTransformations();
 
-            //loadStackTraces();
-
             observeOriginalValues();
 
+            loadOriginalObservations();
+
             observeTransformations();
+
+
         }
         catch (Throwable exc) {
             throw new MojoExecutionException("Process failed", exc);
@@ -195,8 +198,6 @@ public class TestObservationMojo extends AbstractObservationMojo {
         }
     }
 
-
-
     private void observeTransformations() throws MojoExecutionException {
         getLog().info("Observing transformation effects");
 
@@ -209,7 +210,10 @@ public class TestObservationMojo extends AbstractObservationMojo {
 
                 getLog().debug("Executing transformation " + index);
                 try {
-                    executeMutation(getPathTo("observations", "tests", Integer.toString(index)), mutations.get(index));
+
+                    Path currentObservationsDirectory = getPathTo("observations", "tests", Integer.toString(index));
+                    executeMutation(currentObservationsDirectory, mutations.get(index));
+                    generateDiffReportFor(currentObservationsDirectory);
                 }
                 catch (Exception exc) {
                     getLog().error("Error executing transformation " + index, exc);
@@ -236,6 +240,40 @@ public class TestObservationMojo extends AbstractObservationMojo {
         FileUtils.write(pathToClass, originalClass);
     }
 
+
+    private BagOfValues originalValues;
+
+    private void loadOriginalObservations() throws MojoExecutionException {
+        try {
+            originalValues = loadOriginalObservations(getPathTo("observations", "tests"));
+        }
+        catch (IOException exc) {
+            throw new MojoExecutionException("Could not read original observation files", exc);
+        }
+    }
+
+    private void generateDiffReportFor(Path directory) throws MojoExecutionException {
+        if(!shouldComputeDiff()) {
+            getLog().info("Skipping diff report generation");
+            return;
+        }
+
+        computeDiffOnFolder(directory, originalValues);
+
+        if(shouldKeepObservations()){
+            return;
+        }
+        removeObservations(directory);
+    }
+
+    private void removeOriginalObservations() throws MojoExecutionException {
+        try {
+            removeOriginalObservationsIfNeeded(getPathTo("observations", "tests"));
+        }
+        catch (IOException exc) {
+            throw new MojoExecutionException("Could not read original test observations", exc);
+        }
+    }
 
 
 

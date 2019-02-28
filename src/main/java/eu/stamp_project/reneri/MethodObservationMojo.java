@@ -3,6 +3,7 @@ package eu.stamp_project.reneri;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import eu.stamp_project.reneri.diff.BagOfValues;
 import eu.stamp_project.reneri.instrumentation.StateObserver;
 import eu.stamp_project.reneri.utils.FileUtils;
 import javassist.*;
@@ -62,7 +63,6 @@ public class MethodObservationMojo extends AbstractObservationMojo {
             return;
         }
 
-
         installRuntime();
 
         ensureObservationFolderIsEmpty("methods");
@@ -94,7 +94,6 @@ public class MethodObservationMojo extends AbstractObservationMojo {
     private boolean noMethodToObserve() {
         return illTestedMethods == null || illTestedMethods.isEmpty();
     }
-
 
     private List<MethodRecord> getIllTestedMethodsFromReport() throws IOException {
         Gson gson = new Gson();
@@ -192,41 +191,61 @@ public class MethodObservationMojo extends AbstractObservationMojo {
 
         getLog().info("Observing method" + methodRecord);
 
-        Path pathToClassFile = getClassFilePath(methodRecord.getClassQualifiedName());
+        Path pathToClassFile = getClassFilePath(methodRecord);
 
+        // Read the original class
         byte[] originalClassBuffer = readBytes(pathToClassFile);
+
+        // Instrument the method to observe exection
         byte[] classWithProbe = insertProbeForMethod(methodRecord, originalClassBuffer);
         writeBytes(pathToClassFile, classWithProbe);
 
-        executeTests(pathToResults.resolve("original"), getInvolvedTestsFor(methodRecord));
-//        executeTestsOnce(pathToResults.resolve("original"), getInvolvedTestsFor(methodRecord));
+        Path originalResults = pathToResults.resolve("original");
 
+        // Execute the tests with the original method
+        executeTests(originalResults, getInvolvedTestsFor(methodRecord));
+
+        BagOfValues originalValues = loadOriginalObservations(pathToResults);
+
+        // Analyze each mutation
         int index = 0;
         for (MutationIdentifier mutation : methodRecord.getMutations()) {
+            Path pathToMutationObservations = pathToResults.resolve(Integer.toString(index++));
 
-            getLog().info("Observing mutation " + mutation);
+            // Observe mutation
+            handleMutation(mutation, pathToMutationObservations, methodRecord, originalClassBuffer);
 
-            Path mutationObservationResults = pathToResults.resolve(Integer.toString(index++));
-            byte[] mutatedClass = mutate(originalClassBuffer, mutation);
-            byte[] mutatedClassWithProbe = insertProbeForMethod(methodRecord, mutatedClass);
-            writeBytes(pathToClassFile, mutatedClassWithProbe);
+            // Generate diff
+            generateDiffReportFor(pathToMutationObservations, originalValues);
 
-            Set<String> testsExecutingMutation = getInvolvedTestsFor(mutation);
-
-            try {
-                Files.createDirectories(mutationObservationResults);
-            }
-            catch (IOException exc) {
-                throw new MojoExecutionException("Could not create directories for mutation observation", exc);
-            }
-
-            saveMutationInfo(mutationObservationResults, mutation, testsExecutingMutation);
-            executeTests(mutationObservationResults, getInvolvedTestsFor(mutation));
-//            executeTestsOnce(mutationObservationResults, getInvolvedTestsFor(mutation));
         }
 
         //Restoring the original class
         writeBytes(pathToClassFile, originalClassBuffer);
+
+        removeOriginalObservationsIfNeeded(pathToResults);
+
+    }
+
+    private void handleMutation(MutationIdentifier mutation, Path mutationObservationResults, MethodRecord methodRecord, byte[] originalClassBuffer) throws MojoExecutionException {
+
+        getLog().info("Observing mutation " + mutation);
+
+        byte[] mutatedClass = mutate(originalClassBuffer, mutation);
+        byte[] mutatedClassWithProbe = insertProbeForMethod(methodRecord, mutatedClass);
+        writeBytes(getClassFilePath(methodRecord), mutatedClassWithProbe);
+
+        Set<String> testsExecutingMutation = getInvolvedTestsFor(mutation);
+
+        try {
+            Files.createDirectories(mutationObservationResults);
+        }
+        catch (IOException exc) {
+            throw new MojoExecutionException("Could not create directories for mutation observation", exc);
+        }
+
+        saveMutationInfo(mutationObservationResults, mutation, testsExecutingMutation);
+        executeTests(mutationObservationResults, getInvolvedTestsFor(mutation));
     }
 
     private ClassPool getProjectClassPool() throws MojoExecutionException {
@@ -241,7 +260,7 @@ public class MethodObservationMojo extends AbstractObservationMojo {
                 throw new MojoExecutionException("Unexpected error while resolving project's classpath", exc);
             }
             catch (NotFoundException exc) {
-                throw new MojoExecutionException("Issues findind project's classpath elements", exc);
+                throw new MojoExecutionException("Issues finding project's classpath elements", exc);
             }
         }
         return projectClassPool;
@@ -283,9 +302,5 @@ public class MethodObservationMojo extends AbstractObservationMojo {
         return result;
 
     }
-
-
-
-
 
 }

@@ -15,7 +15,7 @@ public class MethodDiffMojo extends AbstractDiffMojo {
 
         try {
             for (File methodDirectory : FileUtils.getChildrenDirectories(getPathTo("observations", "methods"))) {
-                generateDiffReportFor(methodDirectory.toPath());
+                generateAllDiffReportFor(methodDirectory.toPath());
             }
         }
         catch (IOException exc) {

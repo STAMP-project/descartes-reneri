@@ -10,11 +10,10 @@ import java.io.IOException;
 @Mojo(name = "testDiff")
 public class TestDiffMojo extends AbstractDiffMojo {
 
-
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         try {
-            generateDiffReportFor(getPathTo("observations", "tests"));
+            generateAllDiffReportFor(getPathTo("observations", "tests"));
         } catch (IOException exc) {
             throw new MojoExecutionException("Could not read test observation files", exc);
 
