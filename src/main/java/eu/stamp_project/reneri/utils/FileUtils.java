@@ -9,26 +9,35 @@ public class FileUtils {
 
     public static void createEmptyDirectory(Path root) throws IOException {
         if (Files.exists(root)) {
-
-            Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
-
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) throws IOException {
-                    Files.delete(file);
-                    return FileVisitResult.CONTINUE;
-                }
-
-                @Override
-                public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-                    Files.delete(dir);
-                    return FileVisitResult.CONTINUE;
-                }
-
-            });
+            deleteAllContent(root);
         }
         Files.createDirectories(root);
     }
 
+    public static void deleteAllContent(Path root) throws IOException {
+        Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) throws IOException {
+                Files.delete(file);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                Files.delete(dir);
+                return FileVisitResult.CONTINUE;
+            }
+        });
+    }
+
+    public static void deleteDirectory(Path root) throws IOException {
+        if(!Files.exists(root)) {
+            return;
+        }
+        deleteAllContent(root);
+        Files.delete(root);
+    }
 
     public static void copyDirectory(final Path source, final Path target) throws IOException {
         Files.walkFileTree(source, EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, new FileVisitor<Path>() {
