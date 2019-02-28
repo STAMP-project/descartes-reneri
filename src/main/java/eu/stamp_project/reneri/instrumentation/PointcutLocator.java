@@ -1,5 +1,6 @@
 package eu.stamp_project.reneri.instrumentation;
 
+import eu.stamp_project.reneri.datastructures.Trie;
 import spoon.processing.AbstractProcessor;
 import spoon.reflect.code.CtBlock;
 import spoon.reflect.code.CtExpression;

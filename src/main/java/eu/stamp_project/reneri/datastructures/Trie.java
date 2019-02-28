@@ -1,4 +1,4 @@
-package eu.stamp_project.reneri.instrumentation;
+package eu.stamp_project.reneri.datastructures;
 
 import java.util.HashMap;
 import java.util.Optional;

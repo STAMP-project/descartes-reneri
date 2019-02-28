@@ -1,5 +1,6 @@
-package eu.stamp_project.reneri.instrumentation;
+package eu.stamp_project.reneri.datastructures;
 
+import eu.stamp_project.reneri.datastructures.Trie;
 import org.junit.Before;
 import org.junit.Test;
 
