@@ -9,13 +9,20 @@ import spoon.reflect.declaration.CtClass;
 import spoon.reflect.declaration.CtMethod;
 import spoon.support.visitor.ProcessingVisitor;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class PointcutLocator extends AbstractProcessor<CtClass<?>> {
 
-    private final Trie<SourcePosition> pointLocations = new Trie<>();
+    private final Map<String, SourcePosition> pointLocations = new HashMap<>();
 
-    public Trie<SourcePosition> getLocations() {
+    private final Map<String, String> pointTypes = new HashMap<>();
+
+    public Map<String, SourcePosition> getLocations() {
         return pointLocations;
     }
+
+    public Map<String, String> getTypes() { return pointTypes; }
 
     @Override
     public void process(CtClass<?> element) {
@@ -24,7 +31,8 @@ public class PointcutLocator extends AbstractProcessor<CtClass<?>> {
             visitor.setProcessor(new ExpressionProcessor(method) {
                 @Override
                 protected void processExpression(String point, CtExpression<?> expression) {
-                    pointLocations.add(point, expression.getPosition());
+                    pointLocations.put(point, expression.getPosition());
+                    pointTypes.put(point, getActualType(expression).getQualifiedName());
                 }
             });
 

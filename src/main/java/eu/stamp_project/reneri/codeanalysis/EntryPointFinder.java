@@ -1,6 +1,5 @@
 package eu.stamp_project.reneri.codeanalysis;
 
-import com.sun.org.apache.xpath.internal.operations.Mod;
 import eu.stamp_project.reneri.datastructures.DirectedGraph;
 import javassist.*;
 import javassist.bytecode.*;

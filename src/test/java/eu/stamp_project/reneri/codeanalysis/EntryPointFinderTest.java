@@ -1,10 +1,7 @@
 package eu.stamp_project.reneri.codeanalysis;
 
 import eu.stamp_project.reneri.utils.FileUtils;
-import javassist.ByteArrayClassPath;
-import javassist.ClassPool;
-import javassist.CtClass;
-import javassist.CtMethod;
+import javassist.*;
 import javassist.bytecode.*;
 import org.junit.Test;
 import org.pitest.reloc.asm.Opcodes;
@@ -23,11 +20,9 @@ import static eu.stamp_project.reneri.testutils.SameSetMatcher.sameSetAs;
 
 public class EntryPointFinderTest {
 
-    private ClassPool getPoolFor(Class<?> theClass) throws IOException {
+    private ClassPool getPoolFor(Class<?> theClass) {
         ClassPool pool = new ClassPool();
-        InputStream classStream = theClass.getClassLoader().getResourceAsStream(theClass.getName().replace('.', '/') + ".class");
-        CtClass ctClass = pool.makeClass(classStream);
-
+        pool.appendClassPath(new ClassClassPath(theClass));
         return pool;
     }
 

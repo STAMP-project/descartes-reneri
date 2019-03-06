@@ -25,7 +25,9 @@ public class FileUtils {
 
             @Override
             public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-                Files.delete(dir);
+                if (!dir.equals(root)) {
+                    Files.delete(dir);
+                }
                 return FileVisitResult.CONTINUE;
             }
         });
@@ -96,8 +98,11 @@ public class FileUtils {
     }
 
     public static File[] getChildrenDirectories(Path root) {
-        File rootDirectory = root.toFile();
-        File[] directories = rootDirectory.listFiles((file) ->  file.isDirectory() && file.canRead());
+        return getChildrenDirectories(root.toFile());
+    }
+
+    public static File[] getChildrenDirectories(File root) {
+        File[] directories = root.listFiles((file) ->  file.isDirectory() && file.canRead());
         if(directories == null) {
             return new File[0];
         }

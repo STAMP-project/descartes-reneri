@@ -69,6 +69,7 @@ public class ObserverClassProcessor extends AbstractProcessor<CtClass<?>> {
         if (body == null) {
             return;
         }
+
         ObservationAttacherProcessor processor = new ObservationAttacherProcessor(method);
         ProcessingVisitor visitor = new ProcessingVisitor(getFactory());
         visitor.setProcessor(processor);

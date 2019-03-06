@@ -4,8 +4,10 @@ package eu.stamp_project.reneri;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.google.gson.stream.JsonWriter;
 import eu.stamp_project.reneri.diff.BagOfValues;
 import eu.stamp_project.reneri.instrumentation.ObserverClassProcessor;
+import eu.stamp_project.reneri.instrumentation.PointcutLocator;
 import eu.stamp_project.reneri.instrumentation.StateObserver;
 import eu.stamp_project.reneri.utils.FileUtils;
 import org.apache.maven.plugin.*;
@@ -17,11 +19,11 @@ import org.pitest.mutationtest.engine.MethodName;
 import org.pitest.mutationtest.engine.MutationIdentifier;
 import spoon.MavenLauncher;
 import spoon.reflect.CtModel;
+import spoon.reflect.cu.SourcePosition;
 import spoon.reflect.declaration.CtClass;
+import spoon.support.visitor.ProcessingVisitor;
 
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -98,7 +100,7 @@ public class TestObservationMojo extends AbstractObservationMojo {
         return getPathTo("generated");
     }
 
-    private Set<CtClass<?>> instrumentTestClasses(String folder) {
+    private Set<CtClass<?>> instrumentTestClasses(String folder) throws MojoExecutionException {
         MavenLauncher launcher = getLauncherForProject();
 
         // Adding the observer to the path so it can be compiled at the same time as the project
@@ -114,8 +116,12 @@ public class TestObservationMojo extends AbstractObservationMojo {
             }
         }
 
+        getLog().info("Saving observation point locations");
+        savePointcutLocations(testClassesFound);
+
         launcher.addProcessor( new ObserverClassProcessor(testClassesFound));
         launcher.process();
+
 
         getLog().debug("Saving instrumented classes");
         launcher.setSourceOutputDirectory(folder);
@@ -128,6 +134,52 @@ public class TestObservationMojo extends AbstractObservationMojo {
         testClassesFound.remove(observerClass);
 
         return testClassesFound;
+    }
+
+    private void savePointcutLocations(Set<CtClass<?>> testClasses) throws MojoExecutionException {
+        PointcutLocator locator = new PointcutLocator();
+
+        for (CtClass<?> testClass : testClasses) {
+            locator.setFactory(testClass.getFactory());
+            locator.process(testClass);
+        }
+
+        try (FileWriter writer = new FileWriter(getPathTo("observations", "tests", "locations.json").toFile())) {
+            JsonWriter jsonWriter = new JsonWriter(writer);
+
+            Map<String, SourcePosition> locations = locator.getLocations();
+            Map<String, String> types = locator.getTypes();
+
+            jsonWriter.beginArray();
+
+            for ( String point : locations.keySet() ) {
+                SourcePosition position = locations.get(point);
+                if(!position.isValidPosition()) {
+                    continue;
+                }
+                jsonWriter.beginObject()
+                        .name("point").value(point)
+                        .name("type").value(types.get(point))
+                        .name("from")
+                            .beginObject()
+                                .name("line").value(position.getLine())
+                                .name("column").value(position.getColumn())
+                            .endObject()
+                        .name("to")
+                            .beginObject()
+                                .name("line").value(position.getEndLine())
+                                .name("column").value(position.getEndColumn())
+                            .endObject()
+                        .name("file").value(position.getFile().toString())
+                    .endObject();
+            }
+
+            jsonWriter.endArray();
+            jsonWriter.close();
+        }
+        catch (IOException exc) {
+            throw new MojoExecutionException("Could not save observation point locations", exc);
+        }
     }
 
     private void compileInstrumentedTestClasses() throws MojoExecutionException {
