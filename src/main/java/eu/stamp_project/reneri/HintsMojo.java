@@ -60,7 +60,7 @@ public class HintsMojo extends ReneriMojo {
         Trie<JsonObject> locations = new Trie<>();
 
         try {
-            JsonReader reader = new JsonReader(new FileReader(getPathTo("observations", "tests", "locations.json").toFile()));
+            JsonReader reader = new JsonReader(new FileReader(getPathTo("observations", "tests").resolve("locations.json").toFile()));
             reader.beginArray();
             while(reader.hasNext()) {
                 JsonObject item = gson.fromJson(reader, JsonObject.class);

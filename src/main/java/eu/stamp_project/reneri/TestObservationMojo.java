@@ -144,7 +144,7 @@ public class TestObservationMojo extends AbstractObservationMojo {
             locator.process(testClass);
         }
 
-        try (FileWriter writer = new FileWriter(getPathTo("observations", "tests", "locations.json").toFile())) {
+        try (FileWriter writer = new FileWriter(getPathTo("observations", "tests").resolve("locations.json").toFile())) {
             JsonWriter jsonWriter = new JsonWriter(writer);
 
             Map<String, SourcePosition> locations = locator.getLocations();
