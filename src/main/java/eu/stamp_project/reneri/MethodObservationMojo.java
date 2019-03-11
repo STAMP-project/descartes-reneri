@@ -72,7 +72,7 @@ public class MethodObservationMojo extends AbstractObservationMojo {
 
 
     private void findTestClasses() {
-        getLog().info("Searching test classes in project");
+        getLog().info("Searching for test classes in the project");
 
         MavenLauncher launcher = getLauncherForProject();
         CtModel model = launcher.buildModel();
