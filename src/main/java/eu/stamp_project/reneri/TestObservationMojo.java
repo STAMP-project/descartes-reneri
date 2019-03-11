@@ -38,6 +38,13 @@ public class TestObservationMojo extends AbstractObservationMojo {
     @Parameter(property = "transformations", defaultValue = "${project.build.directory/mutations.json}")
     private File transformations;
 
+    public boolean shoulCheckInstrumentationOnly() {
+        return checkInstrumentationOnly;
+    }
+
+    @Parameter(property = "checkInstrumentationOnly", defaultValue = "false")
+    private boolean checkInstrumentationOnly;
+
     public File getTransformations() {
         return transformations;
     }
@@ -65,12 +72,21 @@ public class TestObservationMojo extends AbstractObservationMojo {
 
             loadTransformations();
 
+            if(shoulCheckInstrumentationOnly()) {
+                setTestTimes(1);
+            }
+
             observeOriginalValues();
+
+            if(shoulCheckInstrumentationOnly()) {
+                return;
+            }
 
             loadOriginalObservations();
 
             observeTransformations();
 
+            removeOriginalObservations();
 
         }
         catch (Throwable exc) {
@@ -278,14 +294,21 @@ public class TestObservationMojo extends AbstractObservationMojo {
     }
 
     private void executeMutation(Path resultFolderPath, MutationIdentifier mutation) throws IOException, MojoExecutionException {
-        // Mutate the source code
-        Path pathToClass = getClassFilePath(mutation);
-        byte[] originalClass = Files.readAllBytes(pathToClass);
-        FileUtils.write(pathToClass, mutate(originalClass, mutation));
         //Select the tests to execute
         Set<String> tests = getTestsToExecute(mutation);
         //Save the information
         saveMutationInfo(resultFolderPath, mutation, tests);
+
+        if(tests.isEmpty()) {
+            getLog().warn("No test found in recorded stack traces for " + mutation);
+            return;
+        }
+
+        // Mutate the source code
+        Path pathToClass = getClassFilePath(mutation);
+        byte[] originalClass = Files.readAllBytes(pathToClass);
+        FileUtils.write(pathToClass, mutate(originalClass, mutation));
+
         // Execute the tests
         executeTests(resultFolderPath, tests);
         //Restore the original code
