@@ -14,17 +14,11 @@ public class MethodTracesEntry {
 
     public StackTraceElement[][] traces;
 
-    public boolean matches(MutationIdentifier mutation) {
-        return method.equals(
-                String.format("%s/%s%s",
-                        mutation.getClassName().asInternalName(),
-                        mutation.getLocation().getMethodName().name(),
-                        mutation.getLocation().getMethodDesc()
-                )
-        );
+    public boolean matches(MutationInfo mutation) {
+        return method.equals(mutation.getMethodInternalFullName());
     }
 
-    public Set<String> getClosestClassesTo(MutationIdentifier mutation, Set<CtClass<?>> classes) {
+    public Set<String> getClosestClassesTo(MutationInfo mutation, Set<CtClass<?>> classes) {
         if(!matches(mutation)) {
             return Collections.emptySet();
         }

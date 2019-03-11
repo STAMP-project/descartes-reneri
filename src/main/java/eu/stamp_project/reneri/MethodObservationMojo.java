@@ -95,7 +95,7 @@ public class MethodObservationMojo extends AbstractObservationMojo {
         return illTestedMethods == null || illTestedMethods.isEmpty();
     }
 
-    private List<MethodRecord> getIllTestedMethodsFromReport() throws IOException {
+    private List<MethodRecord> getIllTestedMethodsFromReport() throws IOException, MojoExecutionException {
         Gson gson = new Gson();
         FileReader fileReader = new FileReader(methodReport);
         JsonObject document = gson.fromJson(fileReader, JsonObject.class);
@@ -116,19 +116,18 @@ public class MethodObservationMojo extends AbstractObservationMojo {
                     methodJsonObject.getAsJsonPrimitive("package").getAsString().replace('/', '.')
             );
 
-
-            ClassName className = ClassName.fromString(methodRecord.getPackage() + "." + methodRecord.getDeclaringClass());
-            MethodName methodName = MethodName.fromString(methodRecord.getName());
-            Location location = new Location(className, methodName, methodRecord.getDescription());
-
             for (JsonElement mutationItem : methodJsonObject.getAsJsonArray("mutations")) {
                 JsonObject mutationJsonObject = mutationItem.getAsJsonObject();
                 String mutationStatus = mutationJsonObject.getAsJsonPrimitive("status").getAsString();
                 if (!mutationStatus.equals("SURVIVED")) {
                     continue;
                 }
-                String mutator = mutationJsonObject.getAsJsonPrimitive("mutator").getAsString();
-                methodRecord.getMutations().add(new MutationIdentifier(location, 0, mutator));
+
+                MutationInfo mutationInfo = methodRecord.addMutation(
+                        mutationJsonObject.getAsJsonPrimitive("mutator").getAsString(),
+                        testClassesFromJsonArray(mutationJsonObject.getAsJsonArray("tests")));
+                complementTests(mutationInfo);
+
             }
 
             illTestedMethods.add(methodRecord);
@@ -203,13 +202,13 @@ public class MethodObservationMojo extends AbstractObservationMojo {
         Path originalResults = pathToResults.resolve("original");
 
         // Execute the tests with the original method
-        executeTests(originalResults, getInvolvedTestsFor(methodRecord));
+        executeTests(originalResults, getTestsToExecute(methodRecord));
 
         BagOfValues originalValues = loadOriginalObservations(pathToResults);
 
         // Analyze each mutation
         int index = 0;
-        for (MutationIdentifier mutation : methodRecord.getMutations()) {
+        for (MutationInfo mutation : methodRecord.getMutations()) {
             Path pathToMutationObservations = pathToResults.resolve(Integer.toString(index++));
 
             // Observe mutation
@@ -227,25 +226,22 @@ public class MethodObservationMojo extends AbstractObservationMojo {
 
     }
 
-    private void handleMutation(MutationIdentifier mutation, Path mutationObservationResults, MethodRecord methodRecord, byte[] originalClassBuffer) throws MojoExecutionException {
+    private void handleMutation(MutationInfo mutation, Path mutationObservationResults, MethodRecord methodRecord, byte[] originalClassBuffer) throws MojoExecutionException {
 
         getLog().info("Observing mutation " + mutation);
 
-        byte[] mutatedClass = mutate(originalClassBuffer, mutation);
+        byte[] mutatedClass = mutate(originalClassBuffer, mutation.toMutationIdentifier());
         byte[] mutatedClassWithProbe = insertProbeForMethod(methodRecord, mutatedClass);
         writeBytes(getClassFilePath(methodRecord), mutatedClassWithProbe);
-
-        Set<String> testsExecutingMutation = getInvolvedTestsFor(mutation);
-
         try {
             Files.createDirectories(mutationObservationResults);
         }
         catch (IOException exc) {
             throw new MojoExecutionException("Could not create directories for mutation observation", exc);
         }
-
+        Set<String> testsExecutingMutation = getTestsToExecute(mutation);
         saveMutationInfo(mutationObservationResults, mutation, testsExecutingMutation);
-        executeTests(mutationObservationResults, getInvolvedTestsFor(mutation));
+        executeTests(mutationObservationResults, testsExecutingMutation);
     }
 
     private ClassPool getProjectClassPool() throws MojoExecutionException {
@@ -291,14 +287,11 @@ public class MethodObservationMojo extends AbstractObservationMojo {
         }
     }
 
-    private Set<String> getInvolvedTestsFor(MethodRecord method) throws MojoExecutionException {
-
+    private Set<String> getTestsToExecute(MethodRecord method) throws MojoExecutionException {
         HashSet<String> result = new HashSet<>();
-
-        for (MutationIdentifier mutation : method.getMutations()) {
-            result.addAll(getInvolvedTestsFor(mutation));
+        for (MutationInfo mutation : method.getMutations()) {
+            result.addAll(getTestsToExecute(mutation));
         }
-
         return result;
 
     }

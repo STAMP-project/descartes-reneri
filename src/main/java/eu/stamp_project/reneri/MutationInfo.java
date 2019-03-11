@@ -1,6 +1,10 @@
 package eu.stamp_project.reneri;
 
 import com.google.gson.JsonObject;
+import org.pitest.classinfo.ClassName;
+import org.pitest.mutationtest.engine.Location;
+import org.pitest.mutationtest.engine.MethodName;
+import org.pitest.mutationtest.engine.MutationIdentifier;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -78,6 +82,12 @@ public class MutationInfo {
         return packageName + "." + className;
     }
 
+    public String getInternalClassName() { return  getClassQualifiedName().replace('.', '/'); }
+
+    public String getMethodInternalFullName() {
+        return String.format("%s/%s%s", getInternalClassName(), methodName, methodDescription);
+    }
+
     public boolean matches(String name, String desc) {
         return methodName.equals(name) && methodDescription.equals(desc);
     }
@@ -92,6 +102,16 @@ public class MutationInfo {
                 Objects.equals(packageName, that.packageName) &&
                 Objects.equals(methodName, that.methodName) &&
                 Objects.equals(methodDescription, that.methodDescription);
+    }
+
+    public MutationIdentifier toMutationIdentifier() {
+        return new MutationIdentifier(
+                new Location(
+                        ClassName.fromString(getClassQualifiedName()),
+                        MethodName.fromString(methodName),
+                        methodDescription
+                ),
+                0, mutator);
     }
 
     @Override

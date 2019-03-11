@@ -3,6 +3,7 @@ package eu.stamp_project.reneri;
 import org.pitest.mutationtest.engine.MutationIdentifier;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 public class MethodRecord {
@@ -15,7 +16,7 @@ public class MethodRecord {
 
     private String className;
 
-    private List<MutationIdentifier> mutations;
+    private List<MutationInfo> mutations;
 
     public String getName() {
         return name;
@@ -37,15 +38,22 @@ public class MethodRecord {
         return packageName + "." + className;
     }
 
-    public List<MutationIdentifier> getMutations() {
+    public List<MutationInfo> getMutations() {
         return mutations;
+    }
+
+    public MutationInfo addMutation(String mutator, Collection<String> testClasses) {
+        MutationInfo info = new MutationInfo(mutator, className, packageName, name, description);
+        info.setTestClasses(testClasses);
+        mutations.add(info);
+        return info;
     }
 
     public MethodRecord(String name, String description, String className, String packageName) {
         this(name, description, className, packageName, new ArrayList<>());
     }
 
-    public MethodRecord(String name, String description, String className, String packageName, List<MutationIdentifier> mutations) {
+    public MethodRecord(String name, String description, String className, String packageName, List<MutationInfo> mutations) {
         this.name = name;
         this.description = description;
         this.className = className;

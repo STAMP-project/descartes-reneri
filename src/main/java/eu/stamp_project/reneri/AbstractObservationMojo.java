@@ -1,9 +1,6 @@
 package eu.stamp_project.reneri;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
+import com.google.gson.*;
 import eu.stamp_project.mutationtest.descartes.codegeneration.MutationClassAdapter;
 import eu.stamp_project.reneri.diff.BagOfValues;
 import eu.stamp_project.reneri.diff.DiffOnValues;
@@ -36,6 +33,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static eu.stamp_project.reneri.utils.ExceptionUtils.propagate;
 import static eu.stamp_project.reneri.utils.FileUtils.getChildrenDirectories;
@@ -170,30 +168,40 @@ public abstract class AbstractObservationMojo extends AbstractDiffMojo {
         return graph.getInheritanceClousure(classes);
     }
 
-    protected Set<String> getInvolvedTestsFor(MutationIdentifier mutation) throws MojoExecutionException {
-        HashSet<String> result = new HashSet<>();
+//
+//    protected Set<String> getInvolvedTestsFor(MutationInfo mutation) throws MojoExecutionException {
+//        HashSet<String> result = new HashSet<>();
+//        for(MethodTracesEntry entry : getMethodStackTraces()) {
+//            Set<String> closestTests = entry.getClosestClassesTo(mutation, testClasses);
+//            result.addAll(getInheritanceClousure(closestTests)); // Include derived classes
+//        }
+//        return result;
+//    }
+
+    protected void complementTests(MutationInfo mutation) throws MojoExecutionException {
+        HashSet<String> tests = new HashSet<>();
+        tests.addAll(mutation.getTestClasses());
         for(MethodTracesEntry entry : getMethodStackTraces()) {
-            Set<String> closestTests = entry.getClosestClassesTo(mutation, testClasses);
-            result.addAll(getInheritanceClousure(closestTests)); // Include derived classes
+            tests.addAll(entry.getClosestClassesTo(mutation, testClasses));
         }
-        return result;
+        mutation.setTestClasses(getInheritanceClousure(tests));
     }
 
-    protected Set<String> getTestsToExecute(Collection<MutationIdentifier> mutations) throws MojoExecutionException {
+    protected Set<String> getTestsToExecute(Collection<MutationInfo> mutations) throws MojoExecutionException {
         HashSet<String> result = new HashSet<>();
-        for(MutationIdentifier id : mutations) {
-            result.addAll(getInvolvedTestsFor(id));
+        for(MutationInfo mut : mutations) {
+            result.addAll(mut.getTestClasses());
         }
         result.removeAll(getExcludedTests());
         return result;
     }
 
-    protected Set<String> getTestsToExecute(MutationIdentifier mutation) throws MojoExecutionException {
+    protected Set<String> getTestsToExecute(MutationInfo mutation) throws MojoExecutionException {
         return getTestsToExecute(Collections.singleton(mutation));
     }
 
-    protected Path getClassFilePath(MutationIdentifier mutation) {
-        return  Paths.get(getProjectBuild().getOutputDirectory(),  mutation.getClassName().asInternalName() + ".class");
+    protected Path getClassFilePath(MutationInfo mutation) {
+        return  Paths.get(getProjectBuild().getOutputDirectory(),  mutation.getInternalClassName() + ".class");
     }
 
     protected Path getClassFilePath(MethodRecord method) {
@@ -248,18 +256,18 @@ public abstract class AbstractObservationMojo extends AbstractDiffMojo {
         }
     }
 
-    protected void saveMutationInfo(Path folder, MutationIdentifier mutation, Set<String> tests) throws MojoExecutionException {
-        Location location = mutation.getLocation();
+    protected void saveMutationInfo(Path folder, MutationInfo mutation, Set<String> executedTests) throws MojoExecutionException {
+
         JsonObject obj = new JsonObject();
         obj.addProperty("mutator", mutation.getMutator());
-        obj.addProperty("class", location.getClassName().getNameWithoutPackage().toString());
-        obj.addProperty("package", location.getClassName().getPackage().toString());
-        obj.addProperty("method", location.getMethodName().toString());
-        obj.addProperty("description", location.getMethodDesc());
+        obj.addProperty("class", mutation.getClassName());
+        obj.addProperty("package", mutation.getPackageName());
+        obj.addProperty("method", mutation.getMethodName());
+        obj.addProperty("description", mutation.getMethodDescription());
 
-        if(!tests.isEmpty()) {
+        if(!executedTests.isEmpty()) {
             JsonArray testArray = new JsonArray();
-            tests.forEach(testArray::add);
+            executedTests.forEach(testArray::add);
             obj.add("tests", testArray);
         }
 
@@ -342,6 +350,28 @@ public abstract class AbstractObservationMojo extends AbstractDiffMojo {
         catch (IOException exc) {
             throw new MojoExecutionException("Could not remove original observations at " + pathToResults, exc);
         }
+    }
+
+    protected MutationInfo getMutationFromJsonReport(JsonObject mutationJsonObject) {
+        {
+            JsonObject method = mutationJsonObject.getAsJsonObject("method");
+            MutationInfo info = new MutationInfo(
+                    mutationJsonObject.getAsJsonPrimitive("mutator").getAsString(),
+                    method.getAsJsonPrimitive("class").getAsString(),
+                    method.getAsJsonPrimitive("package").getAsString(),
+                    method.getAsJsonPrimitive("name").getAsString(),
+                    method.getAsJsonPrimitive("description").getAsString()
+            );
+            info.setTestClasses(testClassesFromJsonArray(mutationJsonObject.getAsJsonObject("tests").getAsJsonArray("ordered")));
+            return info;
+        }
+    }
+
+    protected Set<String> testClassesFromJsonArray(JsonArray elements) {
+        return MutationInfo.guessTestClasses(
+                StreamSupport.stream(
+                        elements.spliterator(), false)
+                .map(JsonElement::getAsString));
     }
 
 }

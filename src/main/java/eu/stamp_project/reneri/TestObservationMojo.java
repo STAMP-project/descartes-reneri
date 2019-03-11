@@ -2,7 +2,7 @@ package eu.stamp_project.reneri;
 
 
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonWriter;
 import eu.stamp_project.reneri.diff.BagOfValues;
@@ -13,15 +13,10 @@ import eu.stamp_project.reneri.utils.FileUtils;
 import org.apache.maven.plugin.*;
 import org.apache.maven.plugins.annotations.*;
 import org.apache.maven.plugins.annotations.Mojo;
-import org.pitest.classinfo.ClassName;
-import org.pitest.mutationtest.engine.Location;
-import org.pitest.mutationtest.engine.MethodName;
-import org.pitest.mutationtest.engine.MutationIdentifier;
 import spoon.MavenLauncher;
 import spoon.reflect.CtModel;
 import spoon.reflect.cu.SourcePosition;
 import spoon.reflect.declaration.CtClass;
-import spoon.support.visitor.ProcessingVisitor;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -53,7 +48,7 @@ public class TestObservationMojo extends AbstractObservationMojo {
         this.transformations = transformations;
     }
 
-    private List<MutationIdentifier> mutations;
+    private List<MutationInfo> undetectedMutations;
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
@@ -71,6 +66,11 @@ public class TestObservationMojo extends AbstractObservationMojo {
             compileInstrumentedTestClasses();
 
             loadTransformations();
+
+            if(undetectedMutations.isEmpty()) {
+                getLog().warn("No undetected transformation found");
+                return;
+            }
 
             if(shoulCheckInstrumentationOnly()) {
                 setTestTimes(1);
@@ -225,33 +225,27 @@ public class TestObservationMojo extends AbstractObservationMojo {
         getLog().info("Loading undetected transformations");
 
         try {
-            mutations = loadUndetectedMutations();
+            undetectedMutations = loadUndetectedMutations();
         }
         catch (IOException exc) {
             throw new MojoExecutionException("Could not load transformations from " + transformations.getAbsolutePath(), exc);
         }
     }
 
-    private  List<MutationIdentifier> loadUndetectedMutations() throws IOException {
+    private List<MutationInfo> loadUndetectedMutations() throws IOException, MojoExecutionException {
         Gson gson = new Gson();
         FileReader fileReader = new FileReader(transformations);
         JsonObject document = gson.fromJson(fileReader, JsonObject.class);
-        JsonArray mutations = document.getAsJsonArray("mutations");
-        List<MutationIdentifier> result = new ArrayList<>(mutations.size()/2);
-
-        mutations.forEach(mutationElement -> {
+        List<MutationInfo> result = new ArrayList<>();
+        for(JsonElement mutationElement : document.getAsJsonArray("mutations")) {
             JsonObject mutation = mutationElement.getAsJsonObject();
             if(!mutation.getAsJsonPrimitive("status").getAsString().equals("SURVIVED")) {
-                return;
+                continue;
             }
-            JsonObject method = mutation.getAsJsonObject("method");
-            ClassName className = ClassName.fromString(method.getAsJsonPrimitive("package").getAsString() + "." + method.getAsJsonPrimitive("class").getAsString());
-            MethodName methodName = MethodName.fromString(method.getAsJsonPrimitive("name").getAsString());
-            Location location = new Location(className, methodName, method.getAsJsonPrimitive("description").getAsString());
-            MutationIdentifier mID = new MutationIdentifier(location, 0, mutation.getAsJsonPrimitive("mutator").getAsString());
-            result.add(mID);
-        });
-
+            MutationInfo mutationInfo = getMutationFromJsonReport(mutation);
+            complementTests(mutationInfo);
+            result.add(mutationInfo);
+        }
         return result;
     }
 
@@ -259,7 +253,7 @@ public class TestObservationMojo extends AbstractObservationMojo {
         getLog().info("Executing test classes to observe original values");
 
         try {
-            executeTests(getPathTo("observations", "tests", "original"), getTestsToExecute(mutations));
+            executeTests(getPathTo("observations", "tests", "original"), getTestsToExecute(undetectedMutations));
         }
         catch(IOException exc) {
             throw new MojoExecutionException("Could not create directory to store original observations", exc);
@@ -270,7 +264,7 @@ public class TestObservationMojo extends AbstractObservationMojo {
         getLog().info("Observing transformation effects");
 
         try {
-            List<MutationIdentifier> mutations = loadUndetectedMutations();
+            List<MutationInfo> mutations = loadUndetectedMutations();
 
             getLog().debug(String.format("Found %d undetected transformations", mutations.size()));
 
@@ -293,7 +287,7 @@ public class TestObservationMojo extends AbstractObservationMojo {
         }
     }
 
-    private void executeMutation(Path resultFolderPath, MutationIdentifier mutation) throws IOException, MojoExecutionException {
+    private void executeMutation(Path resultFolderPath, MutationInfo mutation) throws IOException, MojoExecutionException {
         //Select the tests to execute
         Set<String> tests = getTestsToExecute(mutation);
         //Save the information
@@ -307,7 +301,7 @@ public class TestObservationMojo extends AbstractObservationMojo {
         // Mutate the source code
         Path pathToClass = getClassFilePath(mutation);
         byte[] originalClass = Files.readAllBytes(pathToClass);
-        FileUtils.write(pathToClass, mutate(originalClass, mutation));
+        FileUtils.write(pathToClass, mutate(originalClass, mutation.toMutationIdentifier()));
 
         // Execute the tests
         executeTests(resultFolderPath, tests);
