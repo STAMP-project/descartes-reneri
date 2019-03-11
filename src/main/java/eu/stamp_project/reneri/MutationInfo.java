@@ -2,22 +2,55 @@ package eu.stamp_project.reneri;
 
 import com.google.gson.JsonObject;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.Objects;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class MutationInfo {
 
-    public String mutator;
+    public static final Pattern TEST_CASE_NAME = Pattern.compile("^(?<class>.+)(\\.)(((?<method>[^\\[]+)(?<params>\\[.*\\])?\\(\\k<class>\\))|(\\k<class>))$");
 
-    public String className;
+    private String mutator;
 
-    public String packageName;
+    private String className;
 
-    public String methodName;
+    private String packageName;
 
-    public String methodDescription;
+    private String methodName;
+
+    private String methodDescription;
+
+    private Set<String> testClasses;
+
+    public String getMutator() {
+        return mutator;
+    }
+
+    public String getClassName() {
+        return className;
+    }
+
+    public String getPackageName() {
+        return packageName;
+    }
+
+    public String getMethodName() {
+        return methodName;
+    }
+
+    public String getMethodDescription() {
+        return methodDescription;
+    }
+
+    public Set<String> getTestClasses() {
+        return testClasses;
+    }
+
+    public void setTestClasses(Collection<String>  testClasses) {
+        this.testClasses = new HashSet<>(testClasses);
+    }
 
     public MutationInfo(String mutator, String className, String packageName, String methodName, String methodDescription) {
         this.mutator = mutator;
@@ -25,6 +58,8 @@ public class MutationInfo {
         this.packageName = packageName;
         this.methodName = methodName;
         this.methodDescription = methodDescription;
+
+        this.testClasses = Collections.emptySet();
     }
 
     public MutationInfo(JsonObject obj) {
@@ -62,5 +97,17 @@ public class MutationInfo {
     @Override
     public int hashCode() {
         return Objects.hash(mutator, className, packageName, methodName, methodDescription);
+    }
+
+    public static Set<String> guessTestClasses(Stream<String>  testCaseNames) {
+        return testCaseNames
+                .map(TEST_CASE_NAME::matcher)
+                .filter(Matcher::matches)
+                .map((m) -> m.group("class"))
+                .collect(Collectors.toSet());
+    }
+
+    public static Set<String> guessTestClasses(Collection<String> testCaseNames) {
+        return guessTestClasses(testCaseNames.stream());
     }
 }

@@ -268,7 +268,7 @@ public class HintsMojo extends ReneriMojo {
                 if(entryPoints == null) {
                     // The actual hint in the case of infection, would be the difference between the observed methods and the static methods
                     // but that is debatable. Since the implementation in Java is painful, I leave that to the human readable report generation.
-                    entryPoints = reportEntryPoints(info.getClassQualifiedName(), info.methodName, info.methodDescription);
+                    entryPoints = reportEntryPoints(info.getClassQualifiedName(), info.getMethodName(), info.getMethodDescription());
                 }
 
                 hint.add("entry-points", entryPoints);
