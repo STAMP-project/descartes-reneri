@@ -1,22 +1,16 @@
 package eu.stamp_project.reneri.codeanalysis;
 
-import eu.stamp_project.reneri.utils.FileUtils;
-import javassist.*;
-import javassist.bytecode.*;
+import javassist.ClassClassPath;
+import javassist.ClassPool;
+import javassist.CtMethod;
 import org.junit.Test;
-import org.pitest.reloc.asm.Opcodes;
-import org.pitest.reloc.asm.tree.MethodInsnNode;
-import spoon.reflect.visitor.TokenWriter;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.Set;
 
-import static org.junit.Assert.*;
-
-import static org.hamcrest.Matchers.*;
-
 import static eu.stamp_project.reneri.testutils.SameSetMatcher.sameSetAs;
+import static org.hamcrest.Matchers.empty;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThat;
 
 public class EntryPointFinderTest {
 
@@ -88,6 +82,7 @@ public class EntryPointFinderTest {
         EntryPointFinder finder = new EntryPointFinder(pool);
         assertThat(finder.findAccessors("x", NoAccessor.class.getTypeName()), empty());
     }
+
 
 
 
