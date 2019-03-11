@@ -32,13 +32,11 @@ public class HintsMojo extends ReneriMojo {
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
-
         createEntryPointFinder();
 
         generateHintsForObservedTests();
 
         generateHintsForObservedMethods();
-
     }
 
     private void createEntryPointFinder() throws MojoExecutionException {
@@ -78,15 +76,21 @@ public class HintsMojo extends ReneriMojo {
     private MutationInfo loadMutationFromDir(Path directory) throws MojoExecutionException {
         Path pathToMutationDetails = directory.resolve("mutation.json");
         try(FileReader reader = new FileReader(pathToMutationDetails.toFile())) {
-            //TODO: Consider a GSON type adapted
-            return new MutationInfo(gson.fromJson(reader, JsonObject.class));
+            //TODO: Consider a GSON type adapted and a unified way to present things
+            JsonObject mutationInfo = gson.fromJson(reader, JsonObject.class);
+            return new MutationInfo(
+                    mutationInfo.getAsJsonPrimitive("mutator").getAsString(),
+                    mutationInfo.getAsJsonPrimitive("class").getAsString(),
+                    mutationInfo.getAsJsonPrimitive("package").getAsString(),
+                    mutationInfo.getAsJsonPrimitive("method").getAsString(),
+                    mutationInfo.getAsJsonPrimitive("description").getAsString());
         }
         catch (IOException exc) {
             throw new MojoExecutionException("Could not read mutation details from " + directory.toString(), exc);
         }
     }
 
-    // TODO: Using the JsonOject class as an intermediate representation, in fact there would good to have a class representing the concept and using observation objects, again, a GSON type adaptor is needed
+    // TODO: Using the JsonOject class as an intermediate representation, in fact it would good to have a class representing the concept and using observation objects, again, a GSON type adaptor is needed
     private Collection<JsonObject> getMeaningfulDifferencesFromDir(Path directory) throws MojoExecutionException {
         Path pathToDiff = directory.resolve("diff.json");
         if(!Files.exists(pathToDiff)) {
@@ -132,6 +136,9 @@ public class HintsMojo extends ReneriMojo {
             return toJsonArray(finder.findAccessors(field, type));
         }
         catch (NotFoundException exc) {
+
+            getLog().warn("Could not find accessors for field: " + field + " " + type);
+            getLog().error(exc);
             return new JsonArray();
         }
     }
@@ -159,6 +166,8 @@ public class HintsMojo extends ReneriMojo {
             return toJsonArray(finder.findEntryPointsFor(className, method, desc));
         }
         catch (NotFoundException  exc) {
+            getLog().warn("Could not find entry points for " + method + desc + " declared in " + className);
+            getLog().error(exc);
             return new JsonArray();
         }
 
@@ -190,20 +199,26 @@ public class HintsMojo extends ReneriMojo {
         for (File directory : FileUtils.getChildrenDirectories(testObservations)) {
             Path directoryPath = directory.toPath();
             Collection<JsonObject> reportedDifferences = getMeaningfulDifferencesFromDir(directoryPath);
+
             if(reportedDifferences.isEmpty()) {
                 continue;
             }
 
-            // Set the mutation as observed
-            observedMutations.add(loadMutationFromDir(directoryPath));
+            MutationInfo mutation = loadMutationFromDir(directoryPath);
 
-            //TODO: Once again, need a representation for this
+            // Set the mutation as observed
+            observedMutations.add(mutation);
+
+            //TODO: Once again, we need a representation for this
             JsonArray hints = new JsonArray();
             for (JsonObject difference : reportedDifferences) {
                 String pointcut = difference.get("pointcut").getAsString();
+
                 JsonObject hint = new JsonObject();
                 hint.addProperty("pointcut", pointcut);
                 hint.addProperty("hint-type", "observation");
+
+                hints.add(hint);
 
                 JsonObject location = pointcutLocations.getClosestMatch(pointcut);
                 hint.add("location", location);
@@ -215,7 +230,9 @@ public class HintsMojo extends ReneriMojo {
                     }
                 }
             }
-            writeHints(directoryPath, hints);
+            if(hints.size() != 0) {
+                writeHints(directoryPath, hints);
+            }
         }
 
     }
@@ -251,7 +268,7 @@ public class HintsMojo extends ReneriMojo {
                 if(entryPoints == null) {
                     // The actual hint in the case of infection, would be the difference between the observed methods and the static methods
                     // but that is debatable. Since the implementation in Java is painful, I leave that to the human readable report generation.
-                    entryPoints = reportEntryPoints(info.className, info.methodName, info.methodDescription);
+                    entryPoints = reportEntryPoints(info.getClassQualifiedName(), info.methodName, info.methodDescription);
                 }
 
                 hint.add("entry-points", entryPoints);
