@@ -13,9 +13,8 @@ public class Trie<T> {
 
         public String path;
 
-        public Optional<Node> next(String fragment) {
-            Node nextNode =  children.getOrDefault(fragment, null);
-            return (nextNode == null)? Optional.empty() : Optional.of(nextNode);
+        public Node next(String fragment) {
+            return children.getOrDefault(fragment, null);
         }
 
         public void add(String step, Node node) {
@@ -27,8 +26,6 @@ public class Trie<T> {
     public Trie() { }
 
     public void add(String path, T data) throws IllegalArgumentException {
-        System.out.println("DEBUG => " + path);
-
         add(path, data, "\\|");
     }
 
@@ -38,9 +35,9 @@ public class Trie<T> {
         }
         Node current = root;
         for(String step : path.split(separator)) {
-            Optional<Node> candidate = current.next(step);
-            if(candidate.isPresent()) {
-                current = candidate.get();
+            Node candidate = current.next(step);
+            if(candidate != null) {
+                current = candidate;
             }
             else {
                 Node nextNode = new Node();
@@ -57,11 +54,11 @@ public class Trie<T> {
     public T getClosestMatch(String path, String separator) {
         Node current = root;
         for(String step : path.split(separator)) {
-            Optional<Node> next = current.next(step);
-            if(!next.isPresent()) {
+            Node next = current.next(step);
+            if(next == null) {
                break;
             }
-            current = next.get();
+            current = next;
         }
         return current.data;
     }

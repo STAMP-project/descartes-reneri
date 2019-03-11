@@ -1,10 +1,10 @@
 package eu.stamp_project.reneri.datastructures;
 
-import eu.stamp_project.reneri.datastructures.Trie;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class TrieTest {
 
@@ -51,6 +51,5 @@ public class TrieTest {
         trie.add("path", null);
         fail("IllegalArgumentException should be thrown when inserting a null value");
     }
-
 
 }
