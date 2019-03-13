@@ -127,10 +127,18 @@ public abstract class AbstractObservationMojo extends AbstractDiffMojo {
     private MethodTracesEntry[] methodStackTraces;
 
     protected MethodTracesEntry[] getMethodStackTraces() throws MojoExecutionException {
+        if(methodStackTraces != null) {
+            return methodStackTraces;
+        }
+
+        if(!stackTracesFile.exists()) {
+            getLog().warn("There are no stack traces record. Only test cases reported by PIT are going to be considered.");
+            return methodStackTraces = new MethodTracesEntry[0];
+        }
+
         Gson gson = new Gson();
         try (FileReader reader = new FileReader(stackTracesFile)) {
-            methodStackTraces = gson.fromJson(reader, MethodTracesEntry[].class);
-            return methodStackTraces;
+            return methodStackTraces = gson.fromJson(reader, MethodTracesEntry[].class);
         } catch (Exception exc) {
             throw new MojoExecutionException("An error occurred while loading the stack traces file.", exc);
         }
