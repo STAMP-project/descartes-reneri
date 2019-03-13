@@ -3,13 +3,13 @@ package eu.stamp_project.reneri.instrumentation;
 import spoon.SpoonException;
 import spoon.processing.AbstractProcessor;
 import spoon.reflect.code.CtBlock;
+import spoon.reflect.code.CtExpression;
 import spoon.reflect.declaration.CtAnnotation;
 import spoon.reflect.declaration.CtClass;
 import spoon.reflect.declaration.CtMethod;
 import spoon.support.visitor.ProcessingVisitor;
 
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 import static eu.stamp_project.reneri.TestClassFinder.getAnnotation;
 
@@ -61,7 +61,10 @@ public class ObserverClassProcessor extends AbstractProcessor<CtClass<?>> {
             return; // Not marked as a test
         }
         CtAnnotation<?> testAnnotation = annotation.get();
-        testAnnotation.addValue("timeout", getFactory().createLiteral(0L));
+        Map<String, CtExpression> attributeValues = new HashMap<>(testAnnotation.getValues());
+        if( attributeValues.remove("timeout") != null) {
+            testAnnotation.setValues(attributeValues);
+        }
     }
 
     protected void insertObservationPoints(CtMethod<?> method) {
