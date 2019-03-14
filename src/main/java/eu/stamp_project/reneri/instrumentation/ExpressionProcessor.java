@@ -62,12 +62,9 @@ public abstract class ExpressionProcessor extends AbstractProcessor<CtExpression
     private boolean canProcessType(CtTypeReference type) {
         return type != null &&
                 !typesToAvoid.contains(type) &&
-                //!type.isGenerics() &&
                 !isDubiousGenericityResolution(type) &&
-                 isVisibleFromDeclaringClass(type) &&
-                canBeExplicit(type)
-                //!type.getQualifiedName().equals("?") && // Yep, unresolved type references are named as ? and I haven't found a better way to query this
-                //!type.isAnonymous() &&
+                canBeExplicit(type) &&
+                isVisibleFromDeclaringClass(type) // This should be called after all the other, a call with ? throws a NullPointerException since the package is null
                 ;
     }
 
@@ -89,20 +86,37 @@ public abstract class ExpressionProcessor extends AbstractProcessor<CtExpression
         return method.getDeclaringType().getReference().canAccess(reference);
     }
 
-    private boolean canBeExplicit(CtTypeReference<?> type) {
-        if(type.getQualifiedName().equals("?") || type.isAnonymous() || type.isGenerics()) {
-            return false;
+    private boolean isGenerics(CtTypeReference<?> type) {
+        try {
+            return type.isGenerics();
+            // AAARGGHHH Spoon!!!!
+            // There are some, still undentified cases where a call to isGenerics in a type reference throws a
+            // NullPointerException. If that is the case, then we return true to skip these types
         }
+        catch (NullPointerException exc) {
+            return true;
+        }
+    }
 
-        if(type instanceof CtArrayTypeReference) {
-            return canBeExplicit(((CtArrayTypeReference<?>) type).getComponentType());
-        }
-        for(CtTypeReference<?> argument : type.getActualTypeArguments()) {
-            if(!canBeExplicit(argument)) {
+    private boolean canBeExplicit(CtTypeReference<?> type) {
+        try {
+            if (type.getQualifiedName().equals("?") || type.isAnonymous() || isGenerics(type)) {
                 return false;
             }
+
+            if (type instanceof CtArrayTypeReference) {
+                return canBeExplicit(((CtArrayTypeReference<?>) type).getComponentType());
+            }
+            for (CtTypeReference<?> argument : type.getActualTypeArguments()) {
+                if (!canBeExplicit(argument)) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (NullPointerException exc) {
+
+            return false;
         }
-        return true;
     }
 
     private boolean canProcessASTNode(CtExpression<?> node) {
