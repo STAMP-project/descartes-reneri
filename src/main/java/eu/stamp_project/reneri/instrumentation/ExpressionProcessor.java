@@ -5,6 +5,7 @@ import spoon.reflect.code.*;
 import spoon.reflect.declaration.*;
 import spoon.reflect.factory.TypeFactory;
 import spoon.reflect.reference.CtArrayTypeReference;
+import spoon.reflect.reference.CtFieldReference;
 import spoon.reflect.reference.CtTypeReference;
 import spoon.support.visitor.ProcessingVisitor;
 
@@ -63,6 +64,7 @@ public abstract class ExpressionProcessor extends AbstractProcessor<CtExpression
                 !typesToAvoid.contains(type) &&
                 //!type.isGenerics() &&
                 !isDubiousGenericityResolution(type) &&
+                 isVisibleFromDeclaringClass(type) &&
                 canBeExplicit(type)
                 //!type.getQualifiedName().equals("?") && // Yep, unresolved type references are named as ? and I haven't found a better way to query this
                 //!type.isAnonymous() &&
@@ -83,6 +85,55 @@ public abstract class ExpressionProcessor extends AbstractProcessor<CtExpression
 
     }
 
+    private boolean isVisibleFromDeclaringClass(CtTypeReference reference) {
+        return method.getDeclaringType().getReference().canAccess(reference);
+    }
+
+    private boolean canBeExplicit(CtTypeReference<?> type) {
+        if(type.getQualifiedName().equals("?") || type.isAnonymous() || type.isGenerics()) {
+            return false;
+        }
+
+        if(type instanceof CtArrayTypeReference) {
+            return canBeExplicit(((CtArrayTypeReference<?>) type).getComponentType());
+        }
+        for(CtTypeReference<?> argument : type.getActualTypeArguments()) {
+            if(!canBeExplicit(argument)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean canProcessASTNode(CtExpression<?> node) {
+        return !(isBannedNode(node) ||
+                isInAssignment(node) ||
+                isClassLiteral(node) ||
+                isAConstantFieldReference(node) ||
+                isStaticFieldExpressionInInnerClass(node) ||
+                isBeingIncrementedOrDecremented(node) ||
+                isInCaseStatement(node));
+    }
+
+    private boolean isBannedNode(CtExpression<?> node) {
+        return Stream.of(
+                CtLiteral.class,
+                CtSuperAccess.class,
+                CtThisAccess.class,
+                CtTypeAccess.class,
+                CtAnnotation.class,
+                CtAnnotationFieldAccess.class,
+                CtLambda.class,
+                CtExecutableReferenceExpression.class,
+                // Not observing unary operators, as their semantic is the same always (no operator overload)
+                // also the semantics of post-(increment|decrement) operators can be disrupted
+                CtUnaryOperator.class, //TODO: But pre-(inc|dec) could be observed
+                // Same goes for binary operators
+                CtBinaryOperator.class,
+                CtNewClass.class
+        ).anyMatch(type -> type.isInstance(node));
+    }
+
     private boolean isInAssignment(CtExpression<?> node) {
         /*
         An assignment is an expression and so it is the left side.
@@ -92,6 +143,37 @@ public abstract class ExpressionProcessor extends AbstractProcessor<CtExpression
         */
 
         return node.getParent() instanceof CtAssignment;
+    }
+
+    private boolean isClassLiteral(CtExpression<?> node) {
+        if(node instanceof CtFieldRead) {
+            CtFieldRead read  = (CtFieldRead)node;
+            return (read.getTarget() instanceof CtTypeAccess && read.getVariable().getSimpleName().equals("class"));
+        }
+        return false;
+    }
+
+    private boolean isAConstantFieldReference(CtExpression<?> node) {
+        if(!(node instanceof CtFieldRead)) {
+            return false;
+        }
+        CtFieldRead<?> fieldRead = (CtFieldRead<?>) node;
+        CtFieldReference<?> fieldReference = fieldRead.getVariable();
+        CtTypeReference<?> fieldType = fieldReference.getType();
+        return fieldReference.isStatic() && fieldReference.isFinal() && (fieldType.isPrimitive() || fieldType.equals(getFactory().Type().STRING));
+    }
+
+    private boolean isStaticFieldExpressionInInnerClass(CtExpression<?> node) {
+        /*
+        * Static fields in innner classes are required to be compile-time constant expressions
+        * therefore we should not transform them with a method call and they are of no interest.
+        * */
+        CtElement parent = node.getParent();
+        if(!(parent instanceof CtField)) {
+            return false;
+        }
+        CtField fieldDeclaration = (CtField)parent;
+        return fieldDeclaration.getModifiers().contains(ModifierKind.STATIC) && !fieldDeclaration.getDeclaringType().isTopLevel();
     }
 
     private boolean isBeingIncrementedOrDecremented(CtExpression<?> node) {
@@ -115,76 +197,13 @@ public abstract class ExpressionProcessor extends AbstractProcessor<CtExpression
         ).contains(operator.getKind());
     }
 
-    private boolean isClassLiteral(CtExpression<?> node) {
-        if(node instanceof CtFieldRead) {
-            CtFieldRead read  = (CtFieldRead)node;
-            return (read.getTarget() instanceof CtTypeAccess && read.getVariable().getSimpleName().equals("class"));
-        }
-        return false;
-    }
-
-    private boolean isStaticFieldExpressionInInnerClass(CtExpression<?> node) {
-        /*
-        * Static fields in innner classes are required to be compile-time constant expressions
-        * therefore we should not transform them with a method call and they are of no interest.
-        * */
-        CtElement parent = node.getParent();
-        if(!(parent instanceof CtField)) {
-            return false;
-        }
-        CtField fieldDeclaration = (CtField)parent;
-        return fieldDeclaration.getModifiers().contains(ModifierKind.STATIC) && !fieldDeclaration.getDeclaringType().isTopLevel();
-    }
-
-    private boolean isBannedNode(CtExpression<?> node) {
-        return Stream.of(
-                CtLiteral.class,
-                CtSuperAccess.class,
-                CtThisAccess.class,
-                CtTypeAccess.class,
-                CtAnnotation.class,
-                CtAnnotationFieldAccess.class,
-                CtLambda.class,
-                CtExecutableReferenceExpression.class,
-                // Not observing unary operators, as their semantic is the same always (no operator overload)
-                // also the semantics of post-(increment|decrement) operators can be disrupted
-                CtUnaryOperator.class, //TODO: But pre-(inc|dec) could be observed
-                // Same goes for binary operators
-                CtBinaryOperator.class,
-                CtNewClass.class
-        ).anyMatch(type -> type.isInstance(node));
-    }
-
-    private boolean canProcessASTNode(CtExpression<?> node) {
-        return !(isBannedNode(node) ||
-                isInAssignment(node) ||
-                isClassLiteral(node) ||
-                isStaticFieldExpressionInInnerClass(node) ||
-                isBeingIncrementedOrDecremented(node) ||
-                isInCaseStatement(node));
-    }
-
     private boolean isInCaseStatement(CtExpression<?> node) {
         // For the cases in which an enum is used in a switch
         // the case value is a variable and not a literal
         return node.getParent() instanceof CtCase;
     }
 
-    private boolean canBeExplicit(CtTypeReference<?> type) {
-        if(type.getQualifiedName().equals("?") || type.isAnonymous() || type.isGenerics()) {
-            return false;
-        }
 
-        if(type instanceof CtArrayTypeReference) {
-            return canBeExplicit(((CtArrayTypeReference<?>) type).getComponentType());
-        }
-        for(CtTypeReference<?> argument : type.getActualTypeArguments()) {
-            if(!canBeExplicit(argument)) {
-                return false;
-            }
-        }
-        return true;
-    }
 
     private String getPointID() {
         return String.format("%s|%d", baseObservationPoint, expressionCounter++);
