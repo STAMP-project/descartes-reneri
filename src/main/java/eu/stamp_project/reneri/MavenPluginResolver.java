@@ -67,12 +67,14 @@ public class MavenPluginResolver {
                 plugin.setVersion(configured.getVersion());
             }
 
-
             Xpp3Dom requestedConfiguration = (Xpp3Dom) plugin.getConfiguration();
-            Xpp3Dom stablishedConfiguration = (Xpp3Dom) configured.getConfiguration();
+            Xpp3Dom establishedConfiguration = (Xpp3Dom) configured.getConfiguration();
 
-            if(requestedConfiguration == null || stablishedConfiguration != null) {
-                plugin.setConfiguration(Xpp3Dom.mergeXpp3Dom(requestedConfiguration, stablishedConfiguration));
+            if(requestedConfiguration == null || establishedConfiguration != null) {
+                Xpp3Dom finalConfiguration = Xpp3Dom.mergeXpp3Dom(requestedConfiguration, establishedConfiguration);
+                // It seems that Maven ignores nested configuration items when invoked form the command line, but not when invoked programatically
+                removeNestedConfigurations(finalConfiguration);
+                plugin.setConfiguration(finalConfiguration);
             }
 
         }
@@ -87,6 +89,24 @@ public class MavenPluginResolver {
         }
 
         return plugin;
+    }
+
+    private void removeNestedConfigurations(Xpp3Dom configuration) {
+        int index;
+        while((index = findIndex(configuration, "configuration")) >= 0) {
+            configuration.removeChild(index);
+        }
+    }
+
+    private int findIndex(Xpp3Dom dom, String tag) {
+        Xpp3Dom[] children = dom.getChildren();
+        for ( int index = 0; index < children.length; index++ ) {
+            if(children[index].getName().equals(tag)) {
+                return index;
+            }
+        }
+        return -1;
+
     }
 
     private void setVersionFromMaven(Plugin plugin) throws PluginVersionResolutionException {

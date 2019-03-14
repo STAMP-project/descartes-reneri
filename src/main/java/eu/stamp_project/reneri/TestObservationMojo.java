@@ -216,7 +216,7 @@ public class TestObservationMojo extends AbstractObservationMojo {
                 configuration(
                         element(name("compileSourceRoots"),
                                 element("value", instrumentedTestsPath)),
-                        element("testSource", "1.8"),
+                        element("testSource", "1.8"), //TODO: Maybe a parameter with the language version
                         element("testTarget", "1.8")
                 ), "testCompile");
     }
