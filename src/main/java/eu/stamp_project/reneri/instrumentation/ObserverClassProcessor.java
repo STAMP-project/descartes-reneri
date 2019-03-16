@@ -36,7 +36,9 @@ public class ObserverClassProcessor extends AbstractProcessor<CtClass<?>> {
         }
 
         try {
-            return (typesToTransform == null) || typesToTransform.contains(element);
+            // Removing generic test classes
+            // DON'T USE isGenerics, for the moment it only returns false
+            return element.getFormalCtTypeParameters().isEmpty() && (typesToTransform == null ||  typesToTransform.contains(element));
         }
         catch(SpoonException exc) {
             // TODO: Log this as a warning
@@ -49,6 +51,10 @@ public class ObserverClassProcessor extends AbstractProcessor<CtClass<?>> {
         //TODO: Use the log mechanism instead of printing to the standard ouput
         System.out.println("Processing " + element.getQualifiedName());
         for (CtMethod<?> method : element.getMethods()) {
+            // Skipping generic methods
+            if(!method.getFormalCtTypeParameters().isEmpty()) {
+                continue;
+            }
             turnOffTimeout(method);
             ObservationAttacherProcessor.processMethod(method);
         }
