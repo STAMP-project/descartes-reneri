@@ -23,6 +23,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.twdata.maven.mojoexecutor.MojoExecutor.*;
 
@@ -124,8 +125,15 @@ public class TestObservationMojo extends AbstractObservationMojo {
         CtModel model = launcher.buildModel();
 
         Set<CtClass<?>> testClassesFound = TestClassFinder.findTestClasses(model);
+        removeExcludedTestClassesFrom(testClassesFound);
 
         if(getLog().isDebugEnabled()) {
+
+            getLog().debug("Excluded test classes");
+            for(String name : getExcludedTests()) {
+                getLog().debug(name);
+            }
+
             getLog().debug("Test classes found: " + testClassesFound.size());
             for(CtClass type : testClassesFound) {
                 getLog().debug(type.getQualifiedName());
@@ -150,6 +158,15 @@ public class TestObservationMojo extends AbstractObservationMojo {
         testClassesFound.remove(observerClass);
 
         return testClassesFound;
+    }
+
+    private void removeExcludedTestClassesFrom (Set<CtClass<?>> classes) {
+        Set<String> excludedClasses = getExcludedTests();
+        classes.removeAll(
+                classes.stream()
+                        .filter( aClass -> excludedClasses.contains(aClass.getQualifiedName()))
+                        .collect(Collectors.toSet())
+        );
     }
 
     private void savePointcutLocations(Set<CtClass<?>> testClasses) throws MojoExecutionException {
