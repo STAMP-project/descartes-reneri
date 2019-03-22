@@ -44,7 +44,7 @@ public class ObservedStackTrace extends ObservedValue {
     @Override
     public int hashCode() {
         StringBuilder builder = new StringBuilder();
-        int top = Math.max(5, trace.length);
+        int top = Math.min(5, trace.length);
         for(int index = 0; index < top; index++) {
             builder.append(trace[index].getMethodName());
         }
