@@ -472,9 +472,9 @@ public class StateObserver {
             // however, with the stack trace we can identify the exact test method that triggered the execution
             // so we record the stack trace but we don't use it while computing the differences.
 
-            StackTraceElement[] stackTrace = new Exception().getStackTrace();
+            //StackTraceElement[] stackTrace = new Exception().getStackTrace();
 //            observe(pointcut + "#trace|length", stackTrace.length - 1);
-            observe(pointcut + "#trace", stackTrace);
+            //observe(pointcut + "#trace", stackTrace);
 
             observeState(pointcut + "#that", thatType, that);
             observeState(pointcut + "#result", resultType, result);
@@ -502,9 +502,9 @@ public class StateObserver {
             // and there are many spurious differences with line numbers lower than 0
             // however, with the stack trace we can identify the exact test method that triggered the execution
             // so we record the stack trace but we don't use it while computing the differences.
-            StackTraceElement[] stackTrace = new Exception().getStackTrace();
+//            StackTraceElement[] stackTrace = new Exception().getStackTrace();
 //            observe(pointcut + "|#trace|length", stackTrace.length - 1);
-            observe(pointcut + "|#trace", stackTrace);
+//            observe(pointcut + "|#trace", stackTrace);
 
             for(int index = 0; index < parameters.length; index++) {
                 observeState(pointcut + "|#" + index, parameterTypes[index], parameters[index]);
