@@ -4,22 +4,23 @@ import eu.stamp_project.reneri.observations.Observation;
 import eu.stamp_project.reneri.observations.ObservedValue;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 public class DiffOnValues {
 
-    private BagOfValues original;
+    private ObservedValueMap expected;
 
     private BagOfValues unexpected;
 
-    public DiffOnValues(BagOfValues original) {
-        this.original = original;
-        unexpected = new BagOfValues(original.getPointCount());
+    public DiffOnValues(ObservedValueMap expected) {
+        this.expected = expected;
+        unexpected = new BagOfValues();
     }
 
     public void add(Observation observation) {
-        if(!original.containsObservation(observation)) {
+        if(!expected.has(observation)) {
             unexpected.add(observation);
         }
     }
@@ -35,7 +36,9 @@ public class DiffOnValues {
                         (entry) ->
                                 new DiffRecord(
                                         entry.getKey(),
-                                        original.getObservedValues(entry.getKey()),
+                                        // The set is kept here to keep these files compatible
+                                        // with the files that were generated before
+                                        Collections.singleton(expected.get(entry.getKey())),
                                         entry.getValue()
                                 )
                 )

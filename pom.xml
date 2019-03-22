@@ -4,7 +4,7 @@
 
 	<groupId>eu.stamp-project</groupId>
 	<artifactId>reneri</artifactId>
-	<version>1.0-SNAPSHOT</version>
+	<version>1.0-EXPERIMENTS</version>
     <packaging>maven-plugin</packaging>
 
 
@@ -145,11 +145,18 @@
 			<version>2.8.0</version>
 		</dependency>
 
+        <!-- Off-heap storage -->
+        <dependency>
+            <groupId>org.mapdb</groupId>
+            <artifactId>mapdb</artifactId>
+            <version>3.0.7</version>
+        </dependency>
+
         <!-- Extreme transformations -->
 		<dependency>
 			<groupId>eu.stamp-project</groupId>
 			<artifactId>descartes</artifactId>
-			<version>1.2.4</version>
+			<version>1.2.5-EXPERIMENTS</version>
 		</dependency>
 
         <!-- Test dependencies -->

@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import eu.stamp_project.reneri.diff.BagOfValues;
+import eu.stamp_project.reneri.diff.ObservedValueMap;
 import eu.stamp_project.reneri.instrumentation.StateObserver;
 import eu.stamp_project.reneri.utils.FileUtils;
 import javassist.*;
@@ -204,7 +205,7 @@ public class MethodObservationMojo extends AbstractObservationMojo {
         // Execute the tests with the original method
         executeTests(originalResults, getTestsToExecute(methodRecord));
 
-        BagOfValues originalValues = loadOriginalObservations(pathToResults);
+        ObservedValueMap originalValues = loadOriginalObservations(pathToResults);
 
         // Analyze each mutation
         int index = 0;

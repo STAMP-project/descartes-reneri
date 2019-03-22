@@ -6,6 +6,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonWriter;
 import eu.stamp_project.reneri.diff.BagOfValues;
+import eu.stamp_project.reneri.diff.ObservedValueMap;
 import eu.stamp_project.reneri.instrumentation.ObserverClassProcessor;
 import eu.stamp_project.reneri.instrumentation.PointcutLocator;
 import eu.stamp_project.reneri.instrumentation.StateObserver;
@@ -327,7 +328,7 @@ public class TestObservationMojo extends AbstractObservationMojo {
     }
 
 
-    private BagOfValues originalValues;
+    private ObservedValueMap originalValues;
 
     private void loadOriginalObservations() throws MojoExecutionException {
         try {

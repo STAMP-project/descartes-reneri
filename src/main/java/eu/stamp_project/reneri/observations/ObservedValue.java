@@ -1,8 +1,8 @@
 package eu.stamp_project.reneri.observations;
 
-import java.util.Optional;
+import java.io.Serializable;
 
-public abstract class ObservedValue {
+public abstract class ObservedValue implements Serializable {
 
     protected String typeName;
 

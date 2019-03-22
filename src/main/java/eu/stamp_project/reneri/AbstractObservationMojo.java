@@ -4,6 +4,7 @@ import com.google.gson.*;
 import eu.stamp_project.mutationtest.descartes.codegeneration.MutationClassAdapter;
 import eu.stamp_project.reneri.diff.BagOfValues;
 import eu.stamp_project.reneri.diff.DiffOnValues;
+import eu.stamp_project.reneri.diff.ObservedValueMap;
 import eu.stamp_project.reneri.observations.Observation;
 import eu.stamp_project.reneri.utils.FileUtils;
 import org.apache.maven.execution.MavenSession;
@@ -332,7 +333,7 @@ public abstract class AbstractObservationMojo extends AbstractDiffMojo {
         }
     }
 
-    protected void generateDiffReportFor(Path pathToObservations, BagOfValues originalValues) throws MojoExecutionException {
+    protected void generateDiffReportFor(Path pathToObservations, ObservedValueMap originalValues) throws MojoExecutionException {
 
         if(!shouldComputeDiff()) {
             getLog().info("Skipping diff on " + pathToObservations);

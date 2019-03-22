@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import eu.stamp_project.reneri.diff.BagOfValues;
 import eu.stamp_project.reneri.diff.DiffOnValues;
+import eu.stamp_project.reneri.diff.ObservedValueMap;
 import eu.stamp_project.reneri.observations.Observation;
 import org.apache.maven.plugin.MojoExecutionException;
 
@@ -13,6 +14,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static eu.stamp_project.reneri.utils.ExceptionUtils.propagate;
@@ -25,14 +28,19 @@ public abstract class AbstractDiffMojo extends ReneriMojo {
     protected final static String DIFF_FILENAME = "diff.json";
 
 
-    protected BagOfValues loadOriginalObservations(Path directory) throws MojoExecutionException {
-        BagOfValues result = new BagOfValues();
-        getObservationsIn(directory.resolve("original"))
-                .forEach(result::add);
-        return result;
+    protected ObservedValueMap loadOriginalObservations(Path directory) throws MojoExecutionException {
+//
+//        BagOfValues result = new BagOfValues();
+//        getObservationsIn(directory.resolve("original"))
+//                .forEach(result::add);
+//        return result;
+
+        ObservedValueMap map = new ObservedValueMap();
+        getObservationsIn(directory.resolve("original")).forEach(map::put);
+        return map;
     }
 
-    protected void computeDiffOnFolder(Path testObservationDirectory, BagOfValues originalValues) throws MojoExecutionException {
+    protected void computeDiffOnFolder(Path testObservationDirectory, ObservedValueMap originalValues) throws MojoExecutionException {
 
         DiffOnValues diffBuilder = new DiffOnValues(originalValues);
         getObservationsIn(testObservationDirectory).forEach(diffBuilder::add);
@@ -73,12 +81,15 @@ public abstract class AbstractDiffMojo extends ReneriMojo {
                 .filter(path -> {
                     File file = path.toFile();
                     return file.exists() && file.canRead();
-                });
+                });//.collect(Collectors.toList());
     }
 
     protected void generateAllDiffReportFor(Path directory) throws MojoExecutionException {
 
-        BagOfValues originalValues = loadOriginalObservations(directory);
+//        BagOfValues originalValues = loadOriginalObservations(directory);
+
+        ObservedValueMap originalValues = loadOriginalObservations(directory);
+
 
         if (originalValues.isEmpty()) {
             getLog().warn("Directory " + directory.toString() + " contained no original observations");
