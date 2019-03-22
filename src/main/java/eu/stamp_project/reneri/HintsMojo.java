@@ -12,6 +12,7 @@ import org.apache.maven.artifact.DependencyResolutionRequiredException;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Mojo;
+import org.apache.maven.plugins.annotations.ResolutionScope;
 
 import java.io.File;
 import java.io.FileReader;
@@ -21,8 +22,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 
-@Mojo(name = "hints")
+
+@Mojo(name = "hints", requiresDependencyResolution = ResolutionScope.TEST)
 public class HintsMojo extends ReneriMojo {
+    // Requires the dependency resolution for test to get the full classpath
 
     private Gson gson = new GsonBuilder().create();
 
