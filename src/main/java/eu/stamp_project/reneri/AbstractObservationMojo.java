@@ -160,16 +160,21 @@ public abstract class AbstractObservationMojo extends AbstractDiffMojo {
         }
     }
 
-    private Set<CtClass<?>> testClasses;
+    private Set<String> testClasses;
 
     private InheritanceGraph graph;
 
     protected void setTestClasses(Set<CtClass<?>> testClasses) {
-        this.testClasses = testClasses;
-        graph = (testClasses == null)? null : new InheritanceGraph(testClasses);
+        if(testClasses == null) {
+            this.testClasses = Collections.emptySet();
+            graph =null;
+            return;
+        }
+        this.testClasses = testClasses.stream().map(CtClass::getQualifiedName).collect(Collectors.toSet());
+        graph = new InheritanceGraph(testClasses);
     }
 
-    protected Set<CtClass<?>> getTestClasses() {
+    protected Set<String> getTestClasses() {
         return testClasses;
     }
 

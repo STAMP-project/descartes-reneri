@@ -97,7 +97,7 @@ public class TestObservationMojo extends AbstractObservationMojo {
     }
 
     private boolean noClassWasInstrumented() {
-        Set<CtClass<?>> classes = getTestClasses();
+        Set<String> classes = getTestClasses();
         return classes == null || classes.isEmpty();
     }
 

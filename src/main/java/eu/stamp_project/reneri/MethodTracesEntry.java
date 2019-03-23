@@ -18,19 +18,19 @@ public class MethodTracesEntry {
         return method.equals(mutation.getMethodInternalFullName());
     }
 
-    public Set<String> getClosestClassesTo(MutationInfo mutation, Set<CtClass<?>> classes) {
+    public Set<String> getClosestClassesTo(MutationInfo mutation, Set<String> classes) {
         if(!matches(mutation)) {
             return Collections.emptySet();
         }
 
-        Set<String> classNames = classes.stream().map(CtClass::getQualifiedName).collect(Collectors.toSet());
+        //Set<String> classNames = classes.stream().map(CtClass::getQualifiedName).collect(Collectors.toSet());
 
         HashSet<String> result = new HashSet<>();
 
         for(StackTraceElement[] trace : traces) {
             for(StackTraceElement frame: trace) {
                 String declaringClass = frame.getClassName();
-                if(classNames.contains(declaringClass)){
+                if(classes.contains(declaringClass)){
                     result.add(declaringClass);
                 }
             }
