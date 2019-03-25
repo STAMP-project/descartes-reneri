@@ -3,9 +3,7 @@ package eu.stamp_project.reneri.diff;
 import eu.stamp_project.reneri.observations.Observation;
 import eu.stamp_project.reneri.observations.ObservedValue;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class DiffOnValues {
@@ -20,7 +18,7 @@ public class DiffOnValues {
     }
 
     public void add(Observation observation) {
-        if(!expected.has(observation)) {
+        if(expected.differsFrom(observation)) {
             unexpected.add(observation);
         }
     }

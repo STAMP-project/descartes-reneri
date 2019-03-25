@@ -52,6 +52,16 @@ public class ObservedValueMap {
         return value != null && value.equals(observation.getValue());
     }
 
+    /*
+    Returns true if the key is contained and the value is different
+    from the value of the given observation.
+     */
+    public boolean differsFrom(Observation observation) {
+        Object value = observedValues.get(observation.getPointcut());
+        return value != null && !value.equals(observation.getValue());
+
+    }
+
     public boolean isEmpty() {
         return observedValues.isEmpty();
     }
