@@ -7,6 +7,7 @@ import eu.stamp_project.reneri.diff.DiffOnValues;
 import eu.stamp_project.reneri.diff.ObservedValueMap;
 import eu.stamp_project.reneri.observations.Observation;
 import eu.stamp_project.reneri.utils.FileUtils;
+import org.apache.maven.artifact.DependencyResolutionRequiredException;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.model.Plugin;
 import org.apache.maven.plugin.BuildPluginManager;
@@ -28,6 +29,9 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.net.URLConnection;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -232,9 +236,21 @@ public abstract class AbstractObservationMojo extends AbstractDiffMojo {
         return new MavenLauncher(getAbsolutePathToProject(), MavenLauncher.SOURCE_TYPE.ALL_SOURCE);
     }
 
-    protected byte[] mutate(byte[] originalClass, MutationIdentifier mutation) {
+    protected byte[] mutate(byte[] originalClass, MutationIdentifier mutation) throws MojoExecutionException {
+
+        List<String> classpath;
+
+        try {
+            classpath = getProject().getTestClasspathElements();
+        }
+        catch (DependencyResolutionRequiredException exc) {
+            throw new MojoExecutionException("Could not get test class path for project", exc);
+        }
+
+
         ClassReader classReader = new ClassReader(originalClass);
-        ClassWriter classWriter = new ClassWriter(classReader, ClassWriter.COMPUTE_FRAMES);
+//        ClassWriter classWriter = new ClassWriter(classReader, ClassWriter.COMPUTE_FRAMES);
+        ClassWriter classWriter = new ContextAwareClassWriter(classReader, ClassWriter.COMPUTE_FRAMES, classpath);
         MutationClassAdapter adapter = new MutationClassAdapter(mutation, classWriter);
         classReader.accept(adapter, ClassReader.EXPAND_FRAMES);
         return classWriter.toByteArray();

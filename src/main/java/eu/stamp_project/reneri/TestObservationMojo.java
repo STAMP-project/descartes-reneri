@@ -171,6 +171,7 @@ public class TestObservationMojo extends AbstractObservationMojo {
     }
 
     private void savePointcutLocations(Set<CtClass<?>> testClasses) throws MojoExecutionException {
+        //TODO: Save the expression too
         PointcutLocator locator = new PointcutLocator();
 
         for (CtClass<?> testClass : testClasses) {

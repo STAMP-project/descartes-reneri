@@ -17,29 +17,37 @@ public class EntryPointFinder {
         this.pool = pool;
     }
 
-    public Set<CtMethod> findAccessors(String fieldName, String observedClass) throws NotFoundException {
+    public Set<CtMethod> findAccessors(String fieldName, String observedClass) /*throws NotFoundException*/ {
 
-        CtClass targetClass = pool.getCtClass(observedClass);
-        CtField field = targetClass.getField(fieldName); // TODO: There could be cases in which a base class declares a field with the same name
+        try {
+            CtClass targetClass = pool.getCtClass(observedClass);
+            CtField field = targetClass.getField(fieldName); // TODO: There could be cases in which a base class declares a field with the same name
 
-        if(!Modifier.isPrivate(field.getModifiers())) {
-            return null; // Special value saying that the field could be directly accessed
+            if (Modifier.isPublic(field.getModifiers())) {
+                return null; // Special value saying that the field could be directly accessed
+            }
+
+            // The field is private:
+            CtClass declaringClass = field.getDeclaringClass();
+            Set<CtMethod> accessors = Arrays.stream(declaringClass.getDeclaredMethods())
+                    .filter((m) -> usesField(m, field))
+                    .collect(Collectors.toSet());
+
+            if (accessors.isEmpty()) {
+                return accessors;
+            }
+            Set<CtMethod> nonPrivateAccessors = selectNonPrivate(accessors);
+            if (!nonPrivateAccessors.isEmpty()) {
+                return nonPrivateAccessors;
+            }
+            return findEntryPointsFor(accessors, declaringClass);
         }
-
-        // The field is private:
-        CtClass declaringClass = field.getDeclaringClass();
-        Set<CtMethod> accessors = Arrays.stream(declaringClass.getDeclaredMethods())
-                .filter((m) -> usesField(m, field))
-                .collect(Collectors.toSet());
-
-        if(accessors.isEmpty()) {
-            return accessors;
+        catch (NotFoundException exc) {
+            // There might be cases in which the field does not belong to the static type
+            // For example, the static type is an interface
+            // for these cases we can not find the accessors
+            return Collections.emptySet();
         }
-        Set<CtMethod> nonPrivateAccessors = selectNonPrivate(accessors);
-        if (!nonPrivateAccessors.isEmpty()) {
-            return nonPrivateAccessors;
-        }
-        return findEntryPointsFor(accessors, declaringClass);
     }
 
     private boolean usesField(CtMethod method, CtField field) {
@@ -50,6 +58,10 @@ public class EntryPointFinder {
         MethodInfo info = method.getMethodInfo();
         ConstPool constPool = info.getConstPool();
         CodeAttribute codeAttribute = info.getCodeAttribute();
+        if(codeAttribute == null) {
+            // We don't know actually
+            return false;
+        }
         CodeIterator it = codeAttribute.iterator();
         try {
             while (it.hasNext()) {
@@ -101,6 +113,10 @@ public class EntryPointFinder {
                 MethodInfo info = method.getMethodInfo();
                 ConstPool constPool = info.getConstPool();
                 CodeAttribute codeAttribute = info.getCodeAttribute();
+                if(codeAttribute == null) {
+                    // Can't inspect methods called by this one
+                    continue;
+                }
                 CodeIterator it = codeAttribute.iterator();
                 while (it.hasNext()) {
                     int index = it.next();

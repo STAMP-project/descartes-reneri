@@ -203,7 +203,7 @@ public class MethodObservationMojo extends AbstractObservationMojo {
         Path originalResults = pathToResults.resolve("original");
 
         // Execute the tests with the original method
-        executeTests(originalResults, getTestsToExecute(methodRecord));
+        executeTests(originalResults, getTestsToExecute(methodRecord.getMutations()));
 
         ObservedValueMap originalValues = loadOriginalObservations(pathToResults);
 
@@ -287,14 +287,4 @@ public class MethodObservationMojo extends AbstractObservationMojo {
             throw new AssertionError("Inserting the probe should not produce any error.", exc);
         }
     }
-
-    private Set<String> getTestsToExecute(MethodRecord method) throws MojoExecutionException {
-        HashSet<String> result = new HashSet<>();
-        for (MutationInfo mutation : method.getMutations()) {
-            result.addAll(getTestsToExecute(mutation));
-        }
-        return result;
-
-    }
-
 }

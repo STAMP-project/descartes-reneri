@@ -44,7 +44,7 @@ public class HintsMojo extends ReneriMojo {
 
     private void createEntryPointFinder() throws MojoExecutionException {
         try {
-            ClassPool classPool = new ClassPool();
+            ClassPool classPool = new ClassPool(true);
             for (String element : getProject().getTestClasspathElements()) {
                 classPool.appendClassPath(element);
             }
@@ -135,15 +135,21 @@ public class HintsMojo extends ReneriMojo {
     }
 
     private JsonArray reportAccessors(String field, String type) {
-        try {
-            return toJsonArray(finder.findAccessors(field, type));
-        }
-        catch (NotFoundException exc) {
 
-            getLog().warn("Could not find accessors for field: " + field + " " + type);
-            getLog().error(exc);
-            return new JsonArray();
+        Set<CtMethod> accessors = finder.findAccessors(field, type);
+        if (accessors == null) {
+            return null;
         }
+        return toJsonArray(finder.findAccessors(field, type));
+//        try {
+//            return toJsonArray(finder.findAccessors(field, type));
+//        }
+//        catch (NotFoundException exc) {
+//
+//            getLog().warn("Could not find accessors for field: " + field + " " + type);
+//            getLog().error(exc);
+//            return new JsonArray();
+//        }
     }
 
     private JsonArray toJsonArray(Collection<CtMethod> methods) {

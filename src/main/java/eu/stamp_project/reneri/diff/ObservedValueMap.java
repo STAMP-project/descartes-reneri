@@ -17,6 +17,9 @@ public class ObservedValueMap {
 
     public ObservedValueMap() {
         DB db = DBMaker.memoryDB().make();
+
+        //TODO: Try with a tempfileDB
+
         //TODO: Define a serializer, so we can put the static type here
         observedValues = db.hashMap("observed-values", Serializer.STRING, Serializer.JAVA).createOrOpen();
         deletedKeys = db.hashSet("deleted-keys", Serializer.STRING).createOrOpen();
