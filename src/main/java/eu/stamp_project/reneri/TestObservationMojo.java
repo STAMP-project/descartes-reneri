@@ -2,6 +2,7 @@ package eu.stamp_project.reneri;
 
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonWriter;
@@ -41,6 +42,17 @@ public class TestObservationMojo extends AbstractObservationMojo {
 
     @Parameter(property = "checkInstrumentationOnly", defaultValue = "false")
     private boolean checkInstrumentationOnly;
+
+    /*
+        This parameter instructs the goal to search for the result of observedMethods
+        and will execute only the transformations for which a diff was previously detected
+     */
+    @Parameter(property = "infectedOnly", defaultValue = "true")
+    private boolean infectedOnly;
+
+    public boolean shouldCheckInfectedOnly() {
+        return infectedOnly;
+    }
 
     public File getTransformations() {
         return transformations;
@@ -245,14 +257,50 @@ public class TestObservationMojo extends AbstractObservationMojo {
 
         try {
             undetectedMutations = loadUndetectedMutations();
+
+            if(shouldCheckInfectedOnly()) {
+                undetectedMutations = keepInfectedOnly(undetectedMutations);
+            }
         }
         catch (IOException exc) {
             throw new MojoExecutionException("Could not load transformations from " + transformations.getAbsolutePath(), exc);
         }
     }
 
+    protected Set<MutationInfo> getInfectedOnly() throws MojoExecutionException {
+        try {
+            HashSet<MutationInfo> result = new HashSet<>();
+
+            Gson gson = new GsonBuilder().create();
+
+            File[] methodDirectories = FileUtils.getChildrenDirectories(getPathTo("observations", "methods"));
+
+            for (File methodDir : methodDirectories) {
+                for (File mutationDir : FileUtils.getChildrenDirectories(methodDir)) {
+
+                    Path pathToMutationDir = mutationDir.toPath();
+                    if (FileUtils.exists(pathToMutationDir.resolve("mutation.json")) && FileUtils.exists(pathToMutationDir.resolve("diff.json"))) {
+                        result.add(loadMutationFromDir(gson, pathToMutationDir));
+                    }
+                }
+            }
+
+            return result;
+        }
+        catch (IOException exc) {
+            throw new MojoExecutionException("Could not read the method observation folder", exc);
+        }
+
+    }
+
+    protected List<MutationInfo> keepInfectedOnly(List<MutationInfo> mutations) throws MojoExecutionException {
+        Set<MutationInfo> infectedMutations = getInfectedOnly();
+        getLog().debug("Found " + infectedMutations.size() + " mutations with reported infection");
+        return mutations.stream().filter(infectedMutations::contains).collect(Collectors.toList());
+    }
+
     private List<MutationInfo> loadUndetectedMutations() throws IOException, MojoExecutionException {
-        Gson gson = new Gson();
+        Gson gson = new GsonBuilder().create();
         FileReader fileReader = new FileReader(transformations);
         JsonObject document = gson.fromJson(fileReader, JsonObject.class);
         List<MutationInfo> result = new ArrayList<>();

@@ -75,23 +75,7 @@ public class HintsMojo extends ReneriMojo {
         }
     }
 
-    //TODO: Need to represent locations as a Java class see comment below
-    private MutationInfo loadMutationFromDir(Path directory) throws MojoExecutionException {
-        Path pathToMutationDetails = directory.resolve("mutation.json");
-        try(FileReader reader = new FileReader(pathToMutationDetails.toFile())) {
-            //TODO: Consider a GSON type adapted and a unified way to present things
-            JsonObject mutationInfo = gson.fromJson(reader, JsonObject.class);
-            return new MutationInfo(
-                    mutationInfo.getAsJsonPrimitive("mutator").getAsString(),
-                    mutationInfo.getAsJsonPrimitive("class").getAsString(),
-                    mutationInfo.getAsJsonPrimitive("package").getAsString(),
-                    mutationInfo.getAsJsonPrimitive("method").getAsString(),
-                    mutationInfo.getAsJsonPrimitive("description").getAsString());
-        }
-        catch (IOException exc) {
-            throw new MojoExecutionException("Could not read mutation details from " + directory.toString(), exc);
-        }
-    }
+
 
     // TODO: Using the JsonOject class as an intermediate representation, in fact it would good to have a class representing the concept and using observation objects, again, a GSON type adaptor is needed
     private Collection<JsonObject> getMeaningfulDifferencesFromDir(Path directory) throws MojoExecutionException {
@@ -213,7 +197,7 @@ public class HintsMojo extends ReneriMojo {
                 continue;
             }
 
-            MutationInfo mutation = loadMutationFromDir(directoryPath);
+            MutationInfo mutation = loadMutationFromDir(gson, directoryPath);
 
             // Set the mutation as observed
             observedMutations.add(mutation);
@@ -265,7 +249,7 @@ public class HintsMojo extends ReneriMojo {
             for(File mutationDir : FileUtils.getChildrenDirectories(methodDir)) {
 
                 Path mutationDirPath = mutationDir.toPath();
-                MutationInfo info = loadMutationFromDir(mutationDirPath);
+                MutationInfo info = loadMutationFromDir(gson, mutationDirPath);
 
                 if(observedMutations.contains(info)) {
                     continue; // Don't generate any hint for this mutation

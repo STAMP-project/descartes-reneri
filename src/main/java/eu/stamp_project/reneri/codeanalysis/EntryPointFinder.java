@@ -124,9 +124,16 @@ public class EntryPointFinder {
                     if (opcode >= 182 && opcode <= 186) { // invoke*
                         int argument = it.s16bitAt(index + 1);
 
-                        if (!declaringClass.getName().equals(constPool.getMethodrefClassName(argument))) {
+                        try {
+                            if (!declaringClass.getName().equals(constPool.getMethodrefClassName(argument))) {
+                                continue;
+                            }
+                        }
+                        catch(ClassCastException exc) {
+                            // There are cases for which this exception can occur, ignore those cases
                             continue;
                         }
+
                         try {
                             CtMethod invokedMethod = declaringClass.getMethod(
                                     constPool.getMethodrefName(argument),

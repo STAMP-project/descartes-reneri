@@ -121,4 +121,8 @@ public class FileUtils {
         }
     }
 
+    public static boolean exists(Path path) {
+        return path.toFile().exists();
+    }
+
 }

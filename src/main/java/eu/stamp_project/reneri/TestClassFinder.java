@@ -6,6 +6,7 @@ import spoon.reflect.reference.CtTypeReference;
 
 import java.lang.annotation.Annotation;
 import java.util.*;
+import java.util.function.Predicate;
 
 public class TestClassFinder {
 
@@ -15,8 +16,20 @@ public class TestClassFinder {
 
     public final static String TEST_CASE_BASE_CLASS = "junit.framework.TestCase";
 
+    public final static Set<String> JUPITER_ANNOTATIONS = new HashSet<>();
+
+    static {
+
+        JUPITER_ANNOTATIONS.add("org.junit.jupiter.api.Test");
+        JUPITER_ANNOTATIONS.add("org.junit.jupiter.api.TestFactory");
+        JUPITER_ANNOTATIONS.add("org.junit.jupiter.api.TestTemplate");
+        JUPITER_ANNOTATIONS.add("org.junit.jupiter.api.RepeatedTest");
+        JUPITER_ANNOTATIONS.add("org.junit.jupiter.api.ParameterizedTest");
+
+    }
+
     public static boolean isTestClass(CtClass<?> type) {
-        return isJunit3TestClass(type) || isJunit4TestClass(type);
+        return isJunit3TestClass(type) || isJunit4TestClass(type) || isJunit5TestClass(type);
     }
 
     public static boolean isJunit3TestClass(CtClass<?> type) {
@@ -30,21 +43,47 @@ public class TestClassFinder {
         return false;
     }
 
+
+
     public static boolean isJunit4TestClass(CtClass<?> type) {
-        if(isDirectJUnit4TestClass(type)) {
+        return matchesOrAncestor(type, TestClassFinder::isDirectJUnit4TestClass);
+//        if(isDirectJUnit4TestClass(type)) {
+//            return true;
+//        }
+//        CtTypeReference<?> superClass = type.getSuperclass();
+//        while (superClass != null) {
+//
+//            CtType<?> declaration = superClass.getDeclaration();
+//            if(declaration instanceof CtClass && isDirectJUnit4TestClass((CtClass)declaration)) {
+//                return true;
+//            }
+//
+//            superClass = superClass.getSuperclass();
+//        }
+//        return false;
+    }
+
+    public static boolean isJunit5TestClass(CtClass<?> type) {
+        return matchesOrAncestor(type, TestClassFinder::declaresJunit5TestMethods);
+    }
+
+    private static boolean matchesOrAncestor(CtClass<?> type, Predicate<CtClass<?>> predicate) {
+        if(predicate.test(type)) {
             return true;
         }
         CtTypeReference<?> superClass = type.getSuperclass();
         while (superClass != null) {
 
             CtType<?> declaration = superClass.getDeclaration();
-            if(declaration instanceof CtClass && isDirectJUnit4TestClass((CtClass)declaration)) {
+
+            if(declaration instanceof CtClass && predicate.test((CtClass)declaration)) {
                 return true;
             }
 
             superClass = superClass.getSuperclass();
         }
         return false;
+
     }
 
     public static Set<CtClass<?>> findTestClasses(CtModel model) {
@@ -123,6 +162,17 @@ public class TestClassFinder {
 
     public static boolean isJunit4TestMethod(CtMethod<?> method) {
         return hasAnnotation(method, TEST_METHOD_ANNOTATION);
+    }
+
+    public static boolean declaresJunit5TestMethods(CtClass<?> type) {
+        return type.getMethods().stream().anyMatch(TestClassFinder::isJunit5TestMethod);
+    }
+
+    public static boolean isJunit5TestMethod(CtMethod<?> method) {
+        return method.getAnnotations().stream().anyMatch(ann -> {
+            CtTypeReference<?> annotationType = ann.getAnnotationType();
+            return annotationType != null && JUPITER_ANNOTATIONS.contains(annotationType.getQualifiedName());
+        });
     }
 
     public static boolean hasAnnotation(CtElement element, String qualifiedName) {
