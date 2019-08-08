@@ -393,6 +393,7 @@ public abstract class AbstractObservationMojo extends AbstractDiffMojo {
                     method.getAsJsonPrimitive("description").getAsString()
             );
             info.setTestClasses(testClassesFromJsonArray(mutationJsonObject.getAsJsonObject("tests").getAsJsonArray("ordered")));
+
             return info;
         }
     }

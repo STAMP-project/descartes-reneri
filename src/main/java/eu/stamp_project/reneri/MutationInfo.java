@@ -14,7 +14,28 @@ import java.util.stream.Stream;
 
 public class MutationInfo {
 
-    public static final Pattern TEST_CASE_NAME = Pattern.compile("^(?<class>.+)(\\.)(((?<method>[^\\[]+)(?<params>\\[.*\\])?\\(\\k<class>\\))|(\\k<class>))$");
+//    public static final Pattern TEST_CASE_NAME = Pattern.compile("^(?<class>[^\\(]+)(\\.)((?<method>[^\\[\\.\\(]+)((?<params>\\[.*\\])?\\(\\k<class>\\))|(\\k<class>))$");
+
+
+
+    public static final Pattern CLASS_ONLY_TEST_NAME;
+    public static final Pattern TEST_CASE_NAME;// = Pattern.compile("^((?<class>[^\\(]+)(\\.)((?<method>[^\\[\\.\\(]+)((?<params>\\[.*\\])?\\(\\k<class>\\))|(\\k<class>)))$");
+
+    public static final Pattern SIMPLE_TEST_CASE_NAME = Pattern.compile("^(?<class>[^\\(]+)(\\.)[^\\[\\.\\(]+$");
+
+    static {
+
+        final String ID = "[^\\\\.\\[/\\(\\)]+";
+        final String  METHOD_ID = String.format("%s|\\<((cl)?init)\\>", ID);
+        final String CLASS_NAME = String.format("%1s(\\.%1$s)+", ID);
+        final String PARAMS = "\\[[^\\[\\]]*\\]";
+
+        // <test> ::= CLASS_NAME "." ( METHOD_NAME [ [ PARAMS ] "(" %CLASS_NAME ")" ] |  %CLASS_NAME )
+
+        final String TEST = String.format( "^(?<class>%1$s)\\.(\\k<class>|(%2$s)((%3$s)?\\(\\k<class>\\))?)$" ,CLASS_NAME, METHOD_ID, PARAMS);
+        TEST_CASE_NAME = Pattern.compile(TEST);
+        CLASS_ONLY_TEST_NAME = Pattern.compile(String.format("^(?<class>%1$s)\\.\\k<class>$", CLASS_NAME));
+    }
 
     private String mutator;
 
@@ -119,9 +140,18 @@ public class MutationInfo {
         return Objects.hash(mutator, className, packageName, methodName, methodDescription);
     }
 
+
+    protected static Matcher getMatcher(CharSequence toMatch) {
+        Matcher matcher = CLASS_ONLY_TEST_NAME.matcher(toMatch);
+        if(matcher.matches()) {
+            return matcher;
+        }
+        return TEST_CASE_NAME.matcher(toMatch);
+    }
+
     public static Set<String> guessTestClasses(Stream<String>  testCaseNames) {
         return testCaseNames
-                .map(TEST_CASE_NAME::matcher)
+                .map(MutationInfo::getMatcher)
                 .filter(Matcher::matches)
                 .map((m) -> m.group("class"))
                 .collect(Collectors.toSet());
@@ -129,5 +159,10 @@ public class MutationInfo {
 
     public static Set<String> guessTestClasses(Collection<String> testCaseNames) {
         return guessTestClasses(testCaseNames.stream());
+    }
+
+    @Override
+    public String toString() {
+        return String.format("{}::{}", getMethodInternalFullName(), getMutator());
     }
 }

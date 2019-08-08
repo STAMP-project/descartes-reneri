@@ -64,35 +64,40 @@ public class TestObservationMojo extends AbstractObservationMojo {
 
     private List<MutationInfo> undetectedMutations;
 
+    @Parameter(property="doInstrumentation", defaultValue = "true")
+    private boolean doInstrumentation;
+
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         try {
 
             ensureObservationFolderIsEmpty("tests");
 
+
             instrumentTestClasses();
 
-            if(noClassWasInstrumented()) {
+            if (noClassWasInstrumented()) {
                 getLog().info("Stopping analysis as no test class was found or instrumented");
                 return;
             }
+
 
             compileInstrumentedTestClasses();
 
             loadTransformations();
 
-            if(undetectedMutations.isEmpty()) {
+            if (undetectedMutations.isEmpty()) {
                 getLog().warn("No undetected transformation found");
                 return;
             }
 
-            if(shoulCheckInstrumentationOnly()) {
+            if (shoulCheckInstrumentationOnly()) {
                 setTestTimes(1);
             }
 
             observeOriginalValues();
 
-            if(shoulCheckInstrumentationOnly()) {
+            if (shoulCheckInstrumentationOnly()) {
                 return;
             }
 
@@ -102,8 +107,7 @@ public class TestObservationMojo extends AbstractObservationMojo {
 
             removeOriginalObservations();
 
-        }
-        catch (Throwable exc) {
+        } catch (Throwable exc) {
             throw new MojoExecutionException("Process failed", exc);
         }
     }
@@ -117,9 +121,16 @@ public class TestObservationMojo extends AbstractObservationMojo {
         getLog().info("Instrumenting test classes");
         try {
             Path testSourceOutputPath = getGeneratedTestsPath();
-            FileUtils.createEmptyDirectory(testSourceOutputPath);
+
+            if(doInstrumentation) { //TODO: Refactor to do this checking only once
+                FileUtils.createEmptyDirectory(testSourceOutputPath);
+            }
+
             setTestClasses(instrumentTestClasses(testSourceOutputPath.toString()));
-            FileUtils.copyDirectory(Paths.get(getProject().getBuild().getTestSourceDirectory()), testSourceOutputPath);
+
+            if(doInstrumentation) {
+                FileUtils.copyDirectory(Paths.get(getProject().getBuild().getTestSourceDirectory()), testSourceOutputPath);
+            }
         }
         catch(IOException exc) {
             throw new MojoExecutionException("An error occurred while creating the instrumented test output folder or while copying the non-instrumented test classes", exc);
@@ -156,19 +167,22 @@ public class TestObservationMojo extends AbstractObservationMojo {
         getLog().info("Saving observation point locations");
         savePointcutLocations(testClassesFound);
 
-        launcher.addProcessor( new ObserverClassProcessor(testClassesFound));
-        launcher.process();
+        if (doInstrumentation) { //If not, avoid saving the test classes
+
+            launcher.addProcessor(new ObserverClassProcessor(testClassesFound));
+            launcher.process();
 
 
-        getLog().debug("Saving instrumented classes");
-        launcher.setSourceOutputDirectory(folder);
+            getLog().debug("Saving instrumented classes");
+            launcher.setSourceOutputDirectory(folder);
 
-        // Not too pretty :(
-        CtClass<?> observerClass = (CtClass<?>)model.getRootPackage().getFactory().Type().get(StateObserver.class);
-        testClassesFound.add(observerClass);
-        launcher.setOutputFilter( testClassesFound::contains);
-        launcher.prettyprint();
-        testClassesFound.remove(observerClass);
+            // Not too pretty :(
+            CtClass<?> observerClass = (CtClass<?>) model.getRootPackage().getFactory().Type().get(StateObserver.class);
+            testClassesFound.add(observerClass);
+            launcher.setOutputFilter(testClassesFound::contains);
+            launcher.prettyprint();
+            testClassesFound.remove(observerClass);
+        }
 
         return testClassesFound;
     }

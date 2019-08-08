@@ -190,7 +190,13 @@ public class HintsMojo extends ReneriMojo {
         Trie<JsonObject> pointcutLocations = loadLocations();
 
         for (File directory : FileUtils.getChildrenDirectories(testObservations)) {
+
             Path directoryPath = directory.toPath();
+
+            if (!FileUtils.exists(directoryPath.resolve("mutation.json"))) { // Not a mutation report
+                continue;
+            }
+
             Collection<JsonObject> reportedDifferences = getMeaningfulDifferencesFromDir(directoryPath);
 
             if(reportedDifferences.isEmpty()) {
@@ -249,6 +255,11 @@ public class HintsMojo extends ReneriMojo {
             for(File mutationDir : FileUtils.getChildrenDirectories(methodDir)) {
 
                 Path mutationDirPath = mutationDir.toPath();
+
+                if (!FileUtils.exists(mutationDirPath.resolve("mutation.json"))) { // Not a mutation report
+                    continue;
+                }
+
                 MutationInfo info = loadMutationFromDir(gson, mutationDirPath);
 
                 if(observedMutations.contains(info)) {
