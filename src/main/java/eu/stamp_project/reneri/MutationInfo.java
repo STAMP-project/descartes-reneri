@@ -32,7 +32,7 @@ public class MutationInfo {
 
         // <test> ::= CLASS_NAME "." ( METHOD_NAME [ [ PARAMS ] "(" %CLASS_NAME ")" ] |  %CLASS_NAME )
 
-        final String TEST = String.format( "^(?<class>%1$s)\\.(\\k<class>|(%2$s)((%3$s)?\\(\\k<class>\\))?)$" ,CLASS_NAME, METHOD_ID, PARAMS);
+        final String TEST = String.format( "^(?<class>%1$s)\\.(\\k<class>|(%2$s)((%3$s)?\\((\\k<class>)?\\))?)$" ,CLASS_NAME, METHOD_ID, PARAMS);
         TEST_CASE_NAME = Pattern.compile(TEST);
         CLASS_ONLY_TEST_NAME = Pattern.compile(String.format("^(?<class>%1$s)\\.\\k<class>$", CLASS_NAME));
     }
@@ -163,6 +163,6 @@ public class MutationInfo {
 
     @Override
     public String toString() {
-        return String.format("{}::{}", getMethodInternalFullName(), getMutator());
+        return String.format("%s::%s", getMethodInternalFullName(), getMutator());
     }
 }

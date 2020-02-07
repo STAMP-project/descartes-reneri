@@ -28,6 +28,11 @@ public class MutationInfoTest {
     }
 
     @Test
+    public void testMatchMethodTestNameParameterless() throws Exception {
+        assertEquals("path.to.Class", getClassName("path.to.Class.method()"));
+    }
+
+    @Test
     public void testMatchMethodWithParametersTestName() throws Exception {
         assertEquals("path.to.Class", getClassName("path.to.Class.method[1](path.to.Class)"));
     }

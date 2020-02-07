@@ -48,7 +48,7 @@ public class ObserverClassProcessor extends AbstractProcessor<CtClass<?>> {
 
     @Override
     public void process(CtClass<?> element) {
-        //TODO: Use the log mechanism instead of printing to the standard ouput
+        //TODO: Use the log mechanism instead of printing to the standard output
         System.out.println("Processing " + element.getQualifiedName());
         for (CtMethod<?> method : element.getMethods()) {
             // Skipping generic methods

@@ -179,7 +179,7 @@ public abstract class ExpressionProcessor extends AbstractProcessor<CtExpression
 
     private boolean isStaticFieldExpressionInInnerClass(CtExpression<?> node) {
         /*
-        * Static fields in innner classes are required to be compile-time constant expressions
+        * Static fields in inner classes are required to be compile-time constant expressions
         * therefore we should not transform them with a method call and they are of no interest.
         * */
         CtElement parent = node.getParent();

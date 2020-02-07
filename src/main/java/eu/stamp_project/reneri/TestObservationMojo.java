@@ -19,6 +19,7 @@ import spoon.MavenLauncher;
 import spoon.reflect.CtModel;
 import spoon.reflect.cu.SourcePosition;
 import spoon.reflect.declaration.CtClass;
+import spoon.reflect.visitor.PrettyPrinter;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -180,6 +181,7 @@ public class TestObservationMojo extends AbstractObservationMojo {
             CtClass<?> observerClass = (CtClass<?>) model.getRootPackage().getFactory().Type().get(StateObserver.class);
             testClassesFound.add(observerClass);
             launcher.setOutputFilter(testClassesFound::contains);
+            launcher.getEnvironment().setAutoImports(false);
             launcher.prettyprint();
             testClassesFound.remove(observerClass);
         }
