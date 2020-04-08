@@ -1,12 +1,16 @@
 package eu.stamp_project.reneri.utils;
 
+import java.io.IOException;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.security.InvalidParameterException;
-import java.util.*;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 
 public class Types {
@@ -87,6 +91,16 @@ public class Types {
             type = type.getSuperclass();
         }
         return result;
+    }
+
+    public static String descriptor(Method method) {
+        return MethodType.methodType(method.getReturnType(), method.getParameterTypes()).descriptorString();
+    }
+
+    public static String resourcePath(Class<?> aClass) { return aClass.getName().replace('.', '/') + ".class"; }
+
+    public static byte[] toBytes(Class<?> aClass) throws IOException {
+        return aClass.getClassLoader().getResourceAsStream(resourcePath(aClass)).readAllBytes();
     }
 
 }

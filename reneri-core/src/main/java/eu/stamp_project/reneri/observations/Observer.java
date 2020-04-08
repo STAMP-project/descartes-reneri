@@ -11,6 +11,10 @@ public class Observer {
 
     private HashSet<String> triggerSentinels = new HashSet<>();
 
+    public Observer(Class<?> sentinel) {
+        setTriggerSentinels(sentinel);
+    }
+
     public void setTriggerSentinels(Class<?> sentinel) {
         triggerSentinels.clear();
         LinkedList<Class<?>> queue = new LinkedList<>();
@@ -121,29 +125,20 @@ public class Observer {
         return new StaticTypeObservation(type.descriptorString(), observeValue(value));
     }
 
-    public MethodInvocationObservation observeInvocationAndTrigger(String method, int line,
-                                                                   Class<?> receiverType, Object receiver,
-                                                                   Class<?> resultType, Object result,
-                                                                   Class<?>[] parameters, Object[] arguments,
-                                                                   Throwable exc) {
-        MethodInvocationObservation observation = observeInvocation(method, line, receiverType, receiver, resultType, result, parameters, arguments, exc);
-        observation.trigger = observeTrigger();
-        return observation;
-    }
-
     public MethodInvocationObservation observeInvocation(String method, int line,
                                                          Class<?> receiverType, Object receiver,
-                                                         Class<?> resultType, Object result,
                                                          Class<?>[] parameters, Object[] arguments,
-                                                         Throwable exc) {
+                                                         Class<?> resultType, Object result,
+                                                         Throwable exc, boolean observeTrigger) {
 
         MethodInvocationObservation observation = new MethodInvocationObservation(method, line);
         if(receiver != null) {
             // Method is not static
             observation.receiver = observe(receiverType, receiver);
         }
-        if(resultType != Void.class && resultType != void.class) {
+        if(resultType != null && resultType != Void.class && resultType != void.class && exc == null) {
             // Method returns a value
+            // No return value to observe if there is an exception
             observation.result = observe(resultType, result);
         }
         if (parameters != null) {
@@ -157,6 +152,11 @@ public class Observer {
         if(exc != null) {
             observation.exception = observeException(exc);
         }
+
+        if(observeTrigger) {
+            observation.trigger = observeTrigger();
+        }
+
         return observation;
     }
 

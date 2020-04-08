@@ -2,7 +2,7 @@ package eu.stamp_project.reneri.observations;
 
 import org.junit.jupiter.api.Test;
 
-import static eu.stamp_project.reneri.observations.Observations.observeValue;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.*;
