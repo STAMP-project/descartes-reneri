@@ -16,8 +16,6 @@ public final class FieldObservation extends StaticTypeObservation {
         if(name == null || name.isBlank()) {
             throw new IllegalArgumentException("Field names must not be null or blank");
         }
-        //Objects.requireNonNull(observation, "Value of field observation must not be null");
-        //TODO: Validate that the type is not null, blank and represents a type
         this.declaringClass = declaringClass;
         this.name = name;
     }

@@ -1,5 +1,7 @@
 package eu.stamp_project.reneri.observations;
 
+import org.junit.platform.commons.support.ModifierSupport;
+
 import java.lang.reflect.Array;
 import java.util.*;
 
@@ -10,6 +12,8 @@ public class Observer {
     private final static String RENERI_OBSERVATION_PACKAGE = Observer.class.getPackageName();
 
     private HashSet<String> triggerSentinels = new HashSet<>();
+
+    public Observer() {}
 
     public Observer(Class<?> sentinel) {
         setTriggerSentinels(sentinel);
@@ -38,7 +42,7 @@ public class Observer {
 
         StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
         int start = 0;
-        while(stackTrace[start].getClassName().startsWith(RENERI_OBSERVATION_PACKAGE)){ start++; };
+        while(stackTrace[start].getClassName().startsWith(RENERI_OBSERVATION_PACKAGE)){ start++; }
         for(int i = start; i  < stackTrace.length; i++) {
             if(!triggerSentinels.contains(stackTrace[i].getClassName())) continue;
             StackTraceElement container = stackTrace[i];
@@ -67,7 +71,7 @@ public class Observer {
             return new ArrayObservation(type.descriptorString(), Array.getLength(value));
         }
         if(isCollection(type)) {
-            new CollectionObservation(typeDescriptor,  getCollectionSize(value));
+            return new CollectionObservation(typeDescriptor,  getCollectionSize(value));
         }
         return new ObjectObservation(typeDescriptor);
     }
@@ -89,14 +93,16 @@ public class Observer {
 
     protected FieldObservation[] observeFieldsFrom(Object value) {
         return fieldsOf(value.getClass())
-                .filter(field -> !(field.isSynthetic() || field.getName().contains("$")))
+                .filter(field -> !(field.isSynthetic() || field.getName().contains("$") || ModifierSupport.isFinal(field)))
                 .map(field -> {
-                    if(!field.canAccess(value)){
+
+                    Object receiver = (ModifierSupport.isStatic(field))?null:value;
+                    if(!field.canAccess(receiver)){
                         field.setAccessible(true);
                     }
                     ValueObservation fieldValueObservation;
                     try {
-                        fieldValueObservation = shallowObserve(field.get(value));
+                        fieldValueObservation = shallowObserve(field.get(receiver));
                     }
                     catch (IllegalAccessException exc) {
                         fieldValueObservation = observeException(exc);
@@ -121,7 +127,7 @@ public class Observer {
         return observation;
     }
 
-    public StaticTypeObservation observe(Class<?> type, Object value) {
+    public StaticTypeObservation observeTypedValue(Class<?> type, Object value) {
         return new StaticTypeObservation(type.descriptorString(), observeValue(value));
     }
 
@@ -134,18 +140,18 @@ public class Observer {
         MethodInvocationObservation observation = new MethodInvocationObservation(method, line);
         if(receiver != null) {
             // Method is not static
-            observation.receiver = observe(receiverType, receiver);
+            observation.receiver = observeTypedValue(receiverType, receiver);
         }
         if(resultType != null && resultType != Void.class && resultType != void.class && exc == null) {
             // Method returns a value
             // No return value to observe if there is an exception
-            observation.result = observe(resultType, result);
+            observation.result = observeTypedValue(resultType, result);
         }
         if (parameters != null) {
             StaticTypeObservation[] argumentObservations = new StaticTypeObservation[parameters.length];
             for (int index = 0; index < arguments.length; index++) {
                 if (parameters[index].isPrimitive()) continue;
-                argumentObservations[index] = observe(parameters[index], arguments[index]);
+                argumentObservations[index] = observeTypedValue(parameters[index], arguments[index]);
             }
             observation.arguments = argumentObservations;
         }
@@ -158,6 +164,14 @@ public class Observer {
         }
 
         return observation;
+    }
+
+    public static ValueObservation observe(Object value) {
+        return new Observer().observeValue(value);
+    }
+
+    public static StaticTypeObservation observe(Class<?> type, Object value) {
+        return new Observer().observeTypedValue(type, value);
     }
 
 }
